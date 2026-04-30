@@ -1,0 +1,145 @@
+{
+  "questions": [
+    {
+      "main_question_stem": "Which career stage are you currently in?",
+      "type": "single_choice",
+      "choices": [
+        "Bachelor student",
+        "Master's student",
+        "PhD candidate",
+        "Postdoctoral researcher",
+        "Research assistant/ Technician",
+        "Senior scientist/ Principal investigator"
+      ]
+    },
+    {
+      "main_question_stem": "How would you describe the organisation in which you currently work?",
+      "type": "single_choice",
+      "choices": [
+        "Academia/ Research institution",
+        "Healthcare",
+        "Industry",
+        "Non-profit organisation",
+        "Health care and academica issues",
+        "previously before 2024 Academia/ Research institution"
+      ]
+    },
+    {
+      "main_question_stem": "In which country do you work?",
+      "type": "single_choice",
+      "choices": [
+        "Angola", "Austria", "Bangladesh", "Belgium", "Brazil", "Cameroon",
+        "Denmark", "El Salvador Centroamerica", "Ethiopia", "France", "Germany",
+        "Greece", "India", "Iraq", "Italy", "Japan", "Kenya", "Luxemburg",
+        "Mexico", "Monaco", "Netherlands", "Nigeria", "Norway", "Pakistan",
+        "Paraguay", "Poland", "Portugal", "Singapore", "Spain", "Suisse",
+        "Sweden", "Switzerland", "Tanzania", "Thailand", "Uganda",
+        "United Kingdom of Great Britain and Northern Ireland",
+        "United States of America", "Uruguay", "Zambia"
+      ]
+    },
+    {
+      "main_question_stem": "In which canton do you work?",
+      "type": "single_choice",
+      "choices": [
+        "Aargau", "Basel-Landschaft", "Basel-Stadt", "Bern", "Fribourg",
+        "Geneva", "Graubünden", "Lucerne", "Neuchâtel", "St. Gallen",
+        "Ticino", "Valais", "Vaud", "Zug", "Zurich"
+      ]
+    },
+    {
+      "main_question_stem": "Omics analysis: specify your training needs You can skip topics that are not relevant",
+      "type": "likert",
+      "scale": [
+        "Not needed",
+        "Slightly needed",
+        "Moderately needed",
+        "Very needed",
+        "Absolutely essential"
+      ]
+    },
+    {
+      "main_question_stem": "Data management and knowledge representation: specify your training needs You can skip topics that are not relevant",
+      "type": "likert",
+      "scale": [
+        "Not needed",
+        "Slightly needed",
+        "Moderately needed",
+        "Very needed",
+        "Absolutely essential"
+      ]
+    },
+    {
+      "main_question_stem": "Computational methods and AI: specify your training needs You can skip topics that are not relevant",
+      "type": "likert",
+      "scale": [
+        "Not needed",
+        "Slightly needed",
+        "Moderately needed",
+        "Very needed",
+        "Absolutely essential"
+      ]
+    },
+    {
+      "main_question_stem": "Biomedicine and pathogens: specify your training needs You can skip topics that are not relevant",
+      "type": "likert",
+      "scale": [
+        "Not needed",
+        "Slightly needed",
+        "Moderately needed",
+        "Very needed",
+        "Absolutely essential"
+      ]
+    },
+    {
+      "main_question_stem": "Biodiversity and Ecology: specify your training needs You can skip topics that are not relevant",
+      "type": "likert",
+      "scale": [
+        "Not needed",
+        "Slightly needed",
+        "Moderately needed",
+        "Very needed",
+        "Absolutely essential"
+      ]
+    },
+    {
+      "main_question_stem": "Please list any topics that you need that are not in our portfolio (https://sib.swiss/training) and were not mentioned above.",
+      "type": "open_text"
+    },
+    {
+      "main_question_stem": "When did you last attend a SIB course?",
+      "type": "single_choice",
+      "choices": [
+        "I have never attended a SIB course",
+        "More than a year ago",
+        "Within the last year"
+      ]
+    },
+    {
+      "main_question_stem": "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+      "type": "likert",
+      "scale": [
+        "Critical barrier",
+        "Large barrier",
+        "Moderate barrier",
+        "Small barrier",
+        "No barrier"
+      ]
+    },
+    {
+      "main_question_stem": "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+      "type": "likert",
+      "scale": [
+        "Strongly dislike",
+        "Dislike",
+        "Neutral",
+        "Like",
+        "Strongly like"
+      ]
+    },
+    {
+      "main_question_stem": "In the future, do you agree to be contacted for future questions in a follow\u2011up 1\u2011to\u20111 session? If you agree to be contacted by us, please leave below your email address.",
+      "type": "open_text"
+    }
+  ]
+}
