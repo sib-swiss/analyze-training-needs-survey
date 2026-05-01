@@ -41,6 +41,9 @@ jobs:
       - name: Render Quarto document
         run: quarto render survey_analysis.qmd --to html
 
+      - name: Rename output to index.html
+        run: cp survey_analysis.html index.html
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
