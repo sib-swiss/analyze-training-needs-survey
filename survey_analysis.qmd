@@ -26,15 +26,6 @@ This report analyses responses to the SIB training needs survey. The survey coll
 4. **Participation barriers** — Same breakdown structure applied to perceived barriers to attending SIB courses.
 5. **Preferred learning formats** — Same breakdown structure applied to format preferences.
 
-**Key findings** *(update after reviewing rendered output)*:
-
-- *Summarise dominant career stage and country distribution here.*
-- *Note any differences in training needs between Swiss and non-Swiss respondents.*
-- *Note any patterns by career stage (e.g. PhD candidates vs. PIs).*
-- *Note any patterns by time since last SIB course (e.g. never attended vs. recent attendees).*
-- *Note the most and least preferred learning formats.*
-- *Note the most commonly reported participation barriers.*
-
 ```{r}
 #| label: setup
 library(dplyr)
