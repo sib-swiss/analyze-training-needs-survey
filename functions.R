@@ -76,7 +76,8 @@ plot_likert <- function(
 	split_by = NULL,
 	split_values = NULL,
 	counts = FALSE,
-	labels = FALSE
+	labels = FALSE,
+	base_size = 14
 ) {
 	df <- survey_long |>
 		dplyr::filter(
@@ -108,6 +109,10 @@ plot_likert <- function(
 			dplyr::select(respondent_id, split_value = col_idx[1])
 		df <- df |> dplyr::left_join(split_col, by = "respondent_id")
 		if (!is.null(split_values)) df <- df |> dplyr::filter(split_value %in% split_values)
+		# Factor split_value so facets follow the order of split_values.
+		df <- df |> dplyr::mutate(
+			split_value = factor(split_value, levels = split_values)
+		)
 	}
 
 	group_vars <- c("sub_question", "answer", if (!is.null(split_by)) "split_value")
@@ -226,7 +231,7 @@ plot_likert <- function(
 		) +
 		ggplot2::scale_fill_manual(values = colors, breaks = scale_levels) +
 		ggplot2::labs(title = plot_title, x = NULL, y = NULL, fill = NULL) +
-		ggplot2::theme_minimal(base_size = 11) +
+		ggplot2::theme_minimal(base_size = base_size) +
 		ggplot2::theme(legend.position = "bottom")
 
 	if (!is.null(split_by)) p <- p + ggplot2::facet_wrap(~ split_value)

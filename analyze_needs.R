@@ -73,15 +73,26 @@ all_topic_questions <- c(
  "Biodiversity and Ecology: specify your training needs You can skip topics that are not relevant"
 )
 
+swiss_participants <- survey_long |>
+	dplyr::filter(
+		main_question == "In which country do you work?",
+		answer == "Switzerland"
+	) |>
+	dplyr::pull(respondent_id)
+
+
+p <- survey_long_swiss <- survey_long |>
+	dplyr::filter(respondent_id %in% swiss_participants) |>
 plot_likert(
-	survey_long,
 	all_topic_questions,
 	counts = TRUE,
 	labels = TRUE
 )
+print(p)
 
+p <- survey_long_swiss <- survey_long |>
+	dplyr::filter(respondent_id %in% swiss_participants) |>
 plot_likert(
-	survey_long,
 	all_topic_questions,
 	counts = TRUE,
 	labels = TRUE,
@@ -92,6 +103,7 @@ plot_likert(
 		"Senior scientist/ Principal investigator"
 	)
 )
+print(p)
 
 # Example: plot a Likert question without splitting.
 plot_likert(
@@ -121,13 +133,14 @@ plot_likert(
 	)
 )
 
-sum(survey_long$main_question == "Computational methods and AI: specify your training needs You can skip topics that are not relevant" &
-	survey_long$answer == "Highly needed", na.rm = TRUE)
-
+p <- survey_long_swiss <- survey_long |>
+	dplyr::filter(respondent_id %in% swiss_participants) |>
 plot_likert(
-	survey_long,
 	"Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+	counts = TRUE,
+	labels = TRUE
 )
+print(p)
 
 # Example: compare PhD candidates vs postdocs.
 p <- survey_long_swiss <- survey_long |>
@@ -147,7 +160,7 @@ print(p)
 p <- survey_long_swiss <- survey_long |>
 	dplyr::filter(respondent_id %in% swiss_participants) |>
 plot_likert(
-	"Omics analysis: specify your training needs You can skip topics that are not relevant",
+all_topic_questions,
 	split_by = "When did you last attend a SIB course? ", labels = TRUE, counts = TRUE,
 	split_values = c(
 		"I have never attended a SIB course",
@@ -192,12 +205,7 @@ plot_likert(
 	)
 )
 
-swiss_participants <- survey_long |>
-	dplyr::filter(
-		main_question == "In which country do you work?",
-		answer == "Switzerland"
-	) |>
-	dplyr::pull(respondent_id)
+
 
 phd_postdoc_pi_participants <- survey_long |>
 	dplyr::filter(

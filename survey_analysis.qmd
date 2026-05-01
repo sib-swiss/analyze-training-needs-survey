@@ -1,0 +1,467 @@
+---
+title: "SIB Training Needs Survey Analysis"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+## Summary
+
+This report analyses responses to the SIB training needs survey. The survey collected responses from researchers across career stages and countries, asking about training needs across five topic areas (omics, computational methods & AI, data management, biomedicine & pathogens, and biodiversity & ecology), as well as preferred learning formats and perceived barriers to participation in SIB courses.
+
+**Analysis steps:**
+
+1. **Response timing** — Distribution of survey completion times to understand when responses were collected.
+2. **Respondent overview** — Frequency breakdowns of career stage, country, Swiss canton, and organisation type to characterise the respondent pool.
+3. **Training needs (all topics)** — Diverging Likert bar charts comparing response distributions across all five topic areas, broken down by Switzerland vs. other, career stage, and time since last SIB course attendance.
+4. **Participation barriers** — Same breakdown structure applied to perceived barriers to attending SIB courses.
+5. **Preferred learning formats** — Same breakdown structure applied to format preferences.
+
+**Key findings** *(update after reviewing rendered output)*:
+
+- *Summarise dominant career stage and country distribution here.*
+- *Note any differences in training needs between Swiss and non-Swiss respondents.*
+- *Note any patterns by career stage (e.g. PhD candidates vs. PIs).*
+- *Note any patterns by time since last SIB course (e.g. never attended vs. recent attendees).*
+- *Note the most and least preferred learning formats.*
+- *Note the most commonly reported participation barriers.*
+
+```{r}
+#| label: setup
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(forcats)
+library(ggplot2)
+library(jsonlite)
+library(readxl)
+library(purrr)
+library(scales)
+library(lubridate)
+
+source("functions.R")
+
+excel_path   <- "data/SIB Training survey.xlsx"
+metadata_path <- "question_metadata.json"
+
+survey_results <- readxl::read_excel(excel_path)
+
+# remove leading/trailing whitespace from column names
+colnames(survey_results) <- str_trim(colnames(survey_results))
+
+survey_results$region <- ifelse(
+  survey_results$`In which country do you work?` == "Switzerland",
+  "Switzerland",
+  "Other"
+)
+
+raw_meta <- jsonlite::read_json(metadata_path, simplifyVector = FALSE)$questions
+meta_df <- purrr::map_dfr(raw_meta, \(q) {
+  tibble::tibble(
+    main_question    = q$main_question_stem,
+    question_meta_type = q$type,
+    scale            = list(unlist(q$scale))
+  )
+})
+
+# All career stage and organisation categories as defined in question_metadata.json.
+# Responses not matching these are recoded to "Other".
+career_stage_values <- c(
+  "PhD candidate",
+  "Postdoctoral researcher",
+  "Senior scientist/ Principal investigator",
+  "Bachelor student",
+  "Master's student",
+  "Research assistant/ Technician"
+)
+
+org_type_values <- c(
+  "Academia/ Research institution",
+  "Healthcare",
+  "Industry",
+  "Non-profit organisation"
+)
+
+survey_results <- survey_results |>
+  dplyr::mutate(
+    `Which career stage are you currently in?` = dplyr::if_else(
+      `Which career stage are you currently in?` %in% career_stage_values,
+      `Which career stage are you currently in?`,
+      "Other"
+    ),
+    `How would you describe the organisation in which you currently work?` = dplyr::if_else(
+      `How would you describe the organisation in which you currently work?` %in% org_type_values,
+      `How would you describe the organisation in which you currently work?`,
+      "Other"
+    )
+  )
+
+question_dictionary <- build_question_dictionary(survey_results, meta_df)
+
+survey_long <- survey_results |>
+  dplyr::mutate(respondent_id = dplyr::row_number()) |>
+  dplyr::mutate(dplyr::across(-respondent_id, as.character)) |>
+  tidyr::pivot_longer(
+    cols      = -respondent_id,
+    names_to  = "raw_column",
+    values_to = "answer"
+  ) |>
+  dplyr::left_join(question_dictionary, by = "raw_column") |>
+  dplyr::mutate(answer = dplyr::na_if(answer, "")) |>
+  dplyr::mutate(answer = ifelse(answer == "Highly needed", "Very needed", answer))
+
+swiss_participants <- survey_long |>
+  dplyr::filter(
+    main_question == "In which country do you work?",
+    answer == "Switzerland"
+  ) |>
+  dplyr::pull(respondent_id)
+
+all_topic_questions <- c(
+  "Data management and knowledge representation: specify your training needs You can skip topics that are not relevant",
+  "Computational methods and AI: specify your training needs You can skip topics that are not relevant",
+  "Omics analysis: specify your training needs You can skip topics that are not relevant",
+  "Biomedicine and pathogens: specify your training needs You can skip topics that are not relevant",
+  "Biodiversity and Ecology: specify your training needs You can skip topics that are not relevant"
+)
+
+sib_course_values <- c(
+  "I have never attended a SIB course",
+  "More than a year ago",
+  "Within the last year"
+)
+```
+
+## Response timing
+
+The histogram below shows when respondents completed the survey, based on the recorded completion timestamp. This helps identify whether responses were collected in a single burst (e.g. following a specific outreach) or spread over time.
+
+```{r}
+#| label: fig-timing
+#| fig-cap: "Distribution of survey submission times (completion time)."
+#| fig-height: 4
+
+survey_results |>
+  mutate(completion_time = as.POSIXct(`Completion time`)) |>
+  filter(!is.na(completion_time)) |>
+  ggplot(aes(x = completion_time)) +
+  geom_histogram(bins = 40) +
+  scale_x_datetime(date_labels = "%b %d", date_breaks = "1 week") +
+  labs(x = NULL, y = "Number of responses") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+## Respondent overview
+
+The four charts below describe the composition of the respondent pool across career stage, country of work, Swiss canton (Swiss respondents only), and organisation type. Countries with fewer than 3 respondents are omitted from the country chart.
+
+```{r}
+#| label: fig-career
+#| fig-cap: "Career stage of respondents."
+#| fig-height: 3.5
+
+survey_results |>
+  rename(career_stage = `Which career stage are you currently in?`) |>
+  filter(!is.na(career_stage)) |>
+  count(career_stage) |>
+  mutate(career_stage = fct_reorder(career_stage, n)) |>
+  ggplot(aes(x = n, y = career_stage)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal()
+```
+
+```{r}
+#| label: fig-country
+#| fig-cap: "Top countries of respondents (countries with ≥ 3 respondents shown)."
+#| fig-height: 4
+
+survey_results |>
+  rename(country = `In which country do you work?`) |>
+  filter(!is.na(country)) |>
+  count(country) |>
+  filter(n >= 3) |>
+  mutate(country = fct_reorder(country, n)) |>
+  ggplot(aes(x = n, y = country)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal()
+```
+
+```{r}
+#| label: fig-canton
+#| fig-cap: "Swiss respondents by canton."
+#| fig-height: 4
+
+survey_results |>
+  rename(canton = `In which canton do you work?`) |>
+  filter(!is.na(canton)) |>
+  count(canton) |>
+  mutate(canton = fct_reorder(canton, n)) |>
+  ggplot(aes(x = n, y = canton)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal()
+```
+
+```{r}
+#| label: fig-canton-sib
+#| fig-cap: "Time since last SIB course attendance, by canton (cantons with > 10 respondents only). Bars show the percentage of respondents within each canton."
+#| fig-height: 5
+
+survey_results |>
+  rename(
+    canton     = `In which canton do you work?`,
+    sib_course = `When did you last attend a SIB course?`
+  ) |>
+  filter(!is.na(canton), !is.na(sib_course)) |>
+  count(canton, sib_course) |>
+  group_by(canton) |>
+  mutate(pct = n / sum(n)) |>
+  filter(sum(n) > 10) |>
+  ungroup() |>
+  mutate(
+    canton     = fct_reorder(canton, pct, \(x) x[1]),
+    sib_course = factor(sib_course, levels = sib_course_values)
+  ) |>
+  ggplot(aes(x = pct, y = canton, fill = sib_course)) +
+  geom_col(position = "stack") +
+  scale_x_continuous(labels = percent_format(), expand = expansion(mult = c(0, 0.05))) +
+  scale_fill_manual(values = c(
+    "I have never attended a SIB course" = "#74C0E0",
+    "More than a year ago"               = "#F4A942",
+    "Within the last year"               = "#5BAF7A"
+  )) +
+  labs(x = "Percentage", y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+#| label: fig-org
+#| fig-cap: "Organisation type of respondents."
+#| fig-height: 3.5
+
+survey_results |>
+  rename(org = `How would you describe the organisation in which you currently work?`) |>
+  filter(!is.na(org)) |>
+  count(org) |>
+  mutate(org = fct_reorder(org, n)) |>
+  ggplot(aes(x = n, y = org)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal()
+```
+
+## Likert-type questions
+
+Each Likert question consists of a set of sub-questions (topics, barriers, or formats) rated on a 5-point scale. Results are displayed as diverging bar charts, with negative responses extending left and positive responses extending right of the centre line. The neutral/middle category is split evenly between both sides. **Sub-questions on the y-axis are ordered by their mean scale score**, so the topic or item with the most positive overall rating appears at the top.
+
+Each section is broken down by three grouping variables: Switzerland vs. other countries (all respondents), career stage (Swiss respondents only), and time since last SIB course attendance (Swiss respondents only). The career stage and SIB course breakdowns are restricted to Swiss respondents because SIB courses primarily target the Swiss research community.
+
+### Training needs: all topics
+
+The following charts pool all five training topic areas (omics, computational methods & AI, data management, biomedicine & pathogens, biodiversity & ecology) into a single plot. Each sub-question corresponds to a specific topic within one of these areas.
+
+#### Switzerland vs. non-Switzerland
+
+```{r}
+#| label: fig-topics-swiss
+#| fig-cap: "Training needs across all topic areas — Switzerland vs. other countries."
+#| fig-height: 13
+#| fig-width: 16
+#| column: screen
+
+plot_likert(
+  survey_long,
+  all_topic_questions,
+  split_by    = "region",
+  split_values = c("Switzerland", "Other"),
+  counts      = TRUE,
+  labels      = TRUE
+)
+```
+
+#### By career stage
+
+```{r}
+#| label: fig-topics-career
+#| fig-cap: "Training needs across all topic areas, Swiss respondents, by career stage."
+#| fig-height: 26
+#| fig-width: 20
+#| column: screen
+
+survey_long |>
+  filter(respondent_id %in% swiss_participants) |>
+  plot_likert(
+    all_topic_questions,
+    split_by     = "Which career stage are you currently in?",
+    split_values = c(career_stage_values, "Other"),
+    counts       = TRUE,
+    labels       = TRUE
+  )
+```
+
+#### By time since last SIB course
+
+```{r}
+#| label: fig-topics-sib
+#| fig-cap: "Training needs across all topic areas, Swiss respondents, by time since last SIB course."
+#| fig-height: 13
+#| fig-width: 20
+#| column: screen
+
+survey_long |>
+  filter(respondent_id %in% swiss_participants) |>
+  plot_likert(
+    all_topic_questions,
+    split_by     = "When did you last attend a SIB course? ",
+    split_values = sib_course_values,
+    counts       = TRUE,
+    labels       = TRUE
+  )
+```
+
+### Participation barriers
+
+Respondents rated how much each of a set of factors would be a barrier to attending a SIB training course, on a scale from "No barrier" to "Critical barrier". The charts below show the distribution of ratings grouped by region, career stage, and SIB course history.
+
+#### Switzerland vs. non-Switzerland
+
+```{r}
+#| label: fig-barriers-swiss
+#| fig-cap: "Participation barriers — Switzerland vs. other countries."
+#| fig-height: 7
+#| fig-width: 16
+#| column: screen
+
+plot_likert(
+  survey_long,
+  "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+  split_by     = "region",
+  split_values = c("Switzerland", "Other"),
+  counts       = TRUE,
+  labels       = TRUE
+)
+```
+
+#### By career stage (Swiss)
+
+```{r}
+#| label: fig-barriers-career
+#| fig-cap: "Participation barriers, Swiss respondents, by career stage."
+#| fig-height: 15
+#| fig-width: 20
+#| column: screen
+
+survey_long |>
+  filter(respondent_id %in% swiss_participants) |>
+  plot_likert(
+    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+    split_by     = "Which career stage are you currently in?",
+    split_values = c(career_stage_values, "Other"),
+    counts       = TRUE,
+    labels       = TRUE
+  )
+```
+
+#### By time since last SIB course (Swiss)
+
+```{r}
+#| label: fig-barriers-sib
+#| fig-cap: "Participation barriers, Swiss respondents, by time since last SIB course."
+#| fig-height: 8
+#| fig-width: 20
+#| column: screen
+
+survey_long |>
+  filter(respondent_id %in% swiss_participants) |>
+  plot_likert(
+    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+    split_by     = "When did you last attend a SIB course? ",
+    split_values = sib_course_values,
+    counts       = TRUE,
+    labels       = TRUE
+  )
+```
+
+### Preferred learning formats
+
+Respondents indicated how much they like or dislike each learning format on a scale from "Strongly dislike" to "Strongly like". Note that formats are not mutually exclusive — respondents could express a preference for multiple formats. The charts below compare preferences across region, career stage, and SIB course history.
+
+#### Switzerland vs. non-Switzerland
+
+```{r}
+#| label: fig-formats-swiss
+#| fig-cap: "Learning format preferences — Switzerland vs. other countries."
+#| fig-height: 7
+#| fig-width: 16
+#| column: screen
+
+plot_likert(
+  survey_long,
+  "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+  split_by     = "region",
+  split_values = c("Switzerland", "Other"),
+  counts       = TRUE,
+  labels       = TRUE
+)
+```
+
+#### By career stage (Swiss)
+
+```{r}
+#| label: fig-formats-career
+#| fig-cap: "Learning format preferences, Swiss respondents, by career stage."
+#| fig-height: 15
+#| fig-width: 20
+#| column: screen
+
+survey_long |>
+  filter(respondent_id %in% swiss_participants) |>
+  plot_likert(
+    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+    split_by     = "Which career stage are you currently in?",
+    split_values = c(career_stage_values, "Other"),
+    counts       = TRUE,
+    labels       = TRUE
+  )
+```
+
+#### By time since last SIB course (Swiss)
+
+```{r}
+#| label: fig-formats-sib
+#| fig-cap: "Learning format preferences, Swiss respondents, by time since last SIB course."
+#| fig-height: 8
+#| fig-width: 20
+#| column: screen
+
+survey_long |>
+  filter(respondent_id %in% swiss_participants) |>
+  plot_likert(
+    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+    split_by     = "When did you last attend a SIB course? ",
+    split_values = sib_course_values,
+    counts       = TRUE,
+    labels       = TRUE
+  )
+```
