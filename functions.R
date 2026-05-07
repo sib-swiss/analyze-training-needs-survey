@@ -5,6 +5,103 @@ normalize_str <- function(x) {
 		stringr::str_squish()
 }
 
+# Render a ggplot to an inline SVG string.
+plot_to_svg <- function(p, width, height) {
+  svg_file <- tempfile(fileext = ".svg")
+  svglite::svglite(svg_file, width = width, height = height)
+  print(p)
+  grDevices::dev.off()
+  paste(readLines(svg_file, warn = FALSE), collapse = "\n")
+}
+
+# Escape a string for safe embedding inside a JS template literal (backticks).
+# Only backticks and ${ need escaping.
+js_escape <- function(s) {
+  s |>
+    gsub("`",     "\\\\`",   x = _) |>
+    gsub("\\$\\{", "\\\\${", x = _)
+}
+
+# Render a Likert plot with per-plot toggle buttons for counts/% and
+# optionally Swiss-only/all respondents.
+#
+# id         : unique string id for this plot
+# all_expr   : function(counts) returning a ggplot for all respondents
+# swiss_expr : optional function(counts) returning a ggplot for Swiss only
+# width, height : plot dimensions in inches
+likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL) {
+  has_swiss <- !is.null(swiss_expr)
+  jid       <- gsub("-", "_", id)
+
+  svg_pct_all   <- js_escape(plot_to_svg(all_expr(counts = FALSE), width, height))
+  svg_cnt_all   <- js_escape(plot_to_svg(all_expr(counts = TRUE),  width, height))
+  svg_pct_swiss <- if (has_swiss) js_escape(plot_to_svg(swiss_expr(counts = FALSE), width, height)) else ""
+  svg_cnt_swiss <- if (has_swiss) js_escape(plot_to_svg(swiss_expr(counts = TRUE),  width, height)) else ""
+
+  swiss_btn <- if (has_swiss) glue::glue(
+    '<button id="{id}-scope-btn" onclick="lt_{jid}.toggleScope()"
+       style="padding:5px 14px;font-size:0.9em;cursor:pointer;margin-left:4px;">
+       Swiss only
+     </button>'
+  ) else ""
+
+  # Use a tempfile to write the JS so glue never interprets backticks.
+  js <- paste0(
+'(function() {
+  var svgs = {
+    "pct-all":   `', svg_pct_all,   '`,
+    "cnt-all":   `', svg_cnt_all,   '`,
+    "pct-swiss": `', svg_pct_swiss, '`,
+    "cnt-swiss": `', svg_cnt_swiss, '`
+  };
+  var mode  = "cnt";
+  var scope = "all";
+  function render() {
+    var plotHost = document.getElementById("', id, '-plot");
+    plotHost.innerHTML = svgs[mode + "-" + scope];
+
+    // Make injected SVG responsive to available container width.
+    var svg = plotHost.querySelector("svg");
+    if (svg) {
+      svg.style.width = "100%";
+      svg.style.maxWidth = "100%";
+      svg.style.height = "auto";
+      svg.style.display = "block";
+    }
+  }
+  window.lt_', jid, ' = {
+    toggleMode: function() {
+      mode = (mode === "pct") ? "cnt" : "pct";
+      document.getElementById("', id, '-mode-btn").textContent =
+        (mode === "cnt") ? "Show percentages" : "Show counts";
+      render();
+    },
+    toggleScope: function() {
+      scope = (scope === "all") ? "swiss" : "all";
+      document.getElementById("', id, '-scope-btn").textContent =
+        (scope === "all") ? "Swiss only" : "All respondents";
+      render();
+    }
+  };
+  render();
+})();')
+
+	html <- paste0(
+		'<div style="width:min(112vw, calc(100% + 16rem));padding:0 0.75rem 0 0;box-sizing:border-box;">\n',
+		'  <div style="margin:0.6em 0 0.4em;">\n',
+		'    <button id="', id, '-mode-btn" onclick="lt_', jid, '.toggleMode()"',
+		' style="padding:5px 14px;font-size:0.9em;cursor:pointer;">Show percentages</button>\n',
+		'    ', swiss_btn, '\n',
+		'  </div>\n',
+		'  <div id="', id, '-plot" style="width:100%;"></div>\n',
+		'</div>\n',
+		'<script>\n', js, '\n</script>\n'
+	)
+
+	# Force pandoc to treat output as raw HTML in Quarto/knitr pipelines.
+	paste0("```{=html}\n", html, "\n```\n")
+}
+
 # Build a per-column dictionary.
 # Grouped questions follow: "Main question stem. Sub question"
 # The stems are taken from likert-type entries in the metadata JSON.
@@ -57,6 +154,73 @@ build_question_dictionary <- function(df, meta_df) {
 			),
 			by = "main_question"
 		)
+}
+
+# 100% stacked bar chart of SIB course attendance by a grouping variable.
+#
+# df             : a data frame containing the grouping column, sib_course column,
+#                  and optionally a recode_to_other vector
+# group_col      : name of the grouping column (string)
+# group_levels   : ordered factor levels for the grouping column; values not in
+#                  this vector are recoded to "Other"
+# sib_col        : name of the SIB course column (string)
+# sib_levels     : ordered factor levels for the SIB course fill variable
+# min_n          : minimum total respondents per group to include (default 0)
+plot_sib_course_pct <- function(
+  df,
+  group_col,
+  group_levels,
+  sib_col,
+  sib_levels,
+  min_n = 0,
+  base_size = 14
+) {
+  sib_colors <- c(
+    "#74C0E0",  # never
+    "#F4A942",  # more than a year ago
+    "#5BAF7A"   # within last year
+  )
+  names(sib_colors) <- sib_levels
+
+  df |>
+    dplyr::rename(group = dplyr::all_of(group_col), sib = dplyr::all_of(sib_col)) |>
+    dplyr::filter(!is.na(group), !is.na(sib)) |>
+    dplyr::mutate(group = dplyr::if_else(group %in% group_levels, group, "Other")) |>
+    dplyr::count(group, sib) |>
+    dplyr::group_by(group) |>
+    dplyr::mutate(pct = n / sum(n)) |>
+    dplyr::filter(sum(n) >= min_n) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(sib = factor(sib, levels = sib_levels)) |>
+    # Order groups by the proportion that answered sib_levels[1] (ascending,
+    # so bars with the highest "never attended" proportion appear at the top).
+    (\(d) {
+      order_vals <- d |>
+        dplyr::filter(sib == sib_levels[1]) |>
+        dplyr::arrange(pct) |>
+        dplyr::pull(group)
+      # Ensure all groups are represented (some may have 0 for sib_levels[1]).
+      all_groups <- unique(d$group)
+      ordered_levels <- c(setdiff(all_groups, order_vals), order_vals)
+      dplyr::mutate(d, group = factor(group, levels = ordered_levels))
+    })() |>
+    (\(d) {
+      ggplot2::ggplot(d, ggplot2::aes(x = pct, y = group, fill = sib)) +
+        ggplot2::geom_col(position = "stack") +
+        ggplot2::geom_text(
+          ggplot2::aes(label = n),
+          position = ggplot2::position_stack(vjust = 0.5),
+          size = base_size / 4, colour = "grey20"
+        ) +
+        ggplot2::scale_x_continuous(
+          labels = scales::percent_format(),
+          expand = ggplot2::expansion(mult = c(0, 0.05))
+        ) +
+        ggplot2::scale_fill_manual(values = sib_colors) +
+        ggplot2::labs(x = "Percentage", y = NULL, fill = NULL) +
+        ggplot2::theme_minimal(base_size = base_size) +
+        ggplot2::theme(legend.position = "bottom")
+    })()
 }
 
 # Diverging Likert bar chart.

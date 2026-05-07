@@ -37,7 +37,9 @@ library(jsonlite)
 library(readxl)
 library(purrr)
 library(scales)
-library(lubridate)
+library(patchwork)
+library(svglite)
+library(glue)
 
 source("functions.R")
 
@@ -64,17 +66,6 @@ meta_df <- purrr::map_dfr(raw_meta, \(q) {
   )
 })
 
-# All career stage and organisation categories as defined in question_metadata.json.
-# Responses not matching these are recoded to "Other".
-career_stage_values <- c(
-  "PhD candidate",
-  "Postdoctoral researcher",
-  "Senior scientist/ Principal investigator",
-  "Bachelor student",
-  "Master's student",
-  "Research assistant/ Technician"
-)
-
 org_type_values <- c(
   "Academia/ Research institution",
   "Healthcare",
@@ -82,10 +73,20 @@ org_type_values <- c(
   "Non-profit organisation"
 )
 
+# Career stages used in Likert breakdowns; anything else (including Bachelor
+# and Master's students) is recoded to "Other" in the single mutate below.
+career_likert_levels <- c(
+  "PhD candidate",
+  "Postdoctoral researcher",
+  "Senior scientist/ Principal investigator",
+  "Research assistant/ Technician",
+  "Other"
+)
+
 survey_results <- survey_results |>
   dplyr::mutate(
     `Which career stage are you currently in?` = dplyr::if_else(
-      `Which career stage are you currently in?` %in% career_stage_values,
+      `Which career stage are you currently in?` %in% career_likert_levels,
       `Which career stage are you currently in?`,
       "Other"
     ),
@@ -212,35 +213,64 @@ survey_results |>
 ```
 
 ```{r}
-#| label: fig-canton-sib
-#| fig-cap: "Time since last SIB course attendance, by canton (cantons with > 10 respondents only). Bars show the percentage of respondents within each canton."
-#| fig-height: 5
+#| label: fig-sib-panel
+#| fig-cap: "Time since last SIB course attendance across four respondent groupings. (A) Switzerland vs. other countries. (B) Canton (cantons with > 10 respondents only). (C) Career stage (Bachelor and Master's students grouped as 'Other'). (D) Organisation type."
+#| fig-height: 10
+#| fig-width: 12
 
-survey_results |>
-  rename(
-    canton     = `In which canton do you work?`,
-    sib_course = `When did you last attend a SIB course?`
-  ) |>
-  filter(!is.na(canton), !is.na(sib_course)) |>
-  count(canton, sib_course) |>
-  group_by(canton) |>
-  mutate(pct = n / sum(n)) |>
-  filter(sum(n) > 10) |>
-  ungroup() |>
-  mutate(
-    canton     = fct_reorder(canton, pct, \(x) x[1]),
-    sib_course = factor(sib_course, levels = sib_course_values)
-  ) |>
-  ggplot(aes(x = pct, y = canton, fill = sib_course)) +
-  geom_col(position = "stack") +
-  scale_x_continuous(labels = percent_format(), expand = expansion(mult = c(0, 0.05))) +
-  scale_fill_manual(values = c(
-    "I have never attended a SIB course" = "#74C0E0",
-    "More than a year ago"               = "#F4A942",
-    "Within the last year"               = "#5BAF7A"
-  )) +
-  labs(x = "Percentage", y = NULL, fill = NULL) +
-  theme_minimal() +
+sib_col <- "When did you last attend a SIB course?"
+
+p_a <- plot_sib_course_pct(
+  survey_results,
+  group_col    = "region",
+  group_levels = c("Switzerland", "Other"),
+  sib_col      = sib_col,
+  sib_levels   = sib_course_values
+)
+
+canton_levels <- survey_results |>
+  rename(canton = `In which canton do you work?`) |>
+  filter(!is.na(canton)) |>
+  count(canton) |>
+  filter(n > 10) |>
+  arrange(n) |>
+  pull(canton)
+
+p_b <- plot_sib_course_pct(
+  survey_results,
+  group_col    = "In which canton do you work?",
+  group_levels = canton_levels,
+  sib_col      = sib_col,
+  sib_levels   = sib_course_values,
+  min_n        = 11
+)
+
+career_sib_levels <- c(
+  "PhD candidate",
+  "Postdoctoral researcher",
+  "Senior scientist/ Principal investigator",
+  "Research assistant/ Technician"
+)
+
+p_c <- plot_sib_course_pct(
+  survey_results,
+  group_col    = "Which career stage are you currently in?",
+  group_levels = career_sib_levels,
+  sib_col      = sib_col,
+  sib_levels   = sib_course_values
+)
+
+p_d <- plot_sib_course_pct(
+  survey_results,
+  group_col    = "How would you describe the organisation in which you currently work?",
+  group_levels = org_type_values,
+  sib_col      = sib_col,
+  sib_levels   = sib_course_values
+)
+
+(p_a + p_b) / (p_c + p_d) +
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A") &
   theme(legend.position = "bottom")
 ```
 
@@ -266,7 +296,7 @@ survey_results |>
 
 Each Likert question consists of a set of sub-questions (topics, barriers, or formats) rated on a 5-point scale. Results are displayed as diverging bar charts, with negative responses extending left and positive responses extending right of the centre line. The neutral/middle category is split evenly between both sides. **Sub-questions on the y-axis are ordered by their mean scale score**, so the topic or item with the most positive overall rating appears at the top.
 
-Each section is broken down by three grouping variables: Switzerland vs. other countries (all respondents), career stage (Swiss respondents only), and time since last SIB course attendance (Swiss respondents only). The career stage and SIB course breakdowns are restricted to Swiss respondents because SIB courses primarily target the Swiss research community.
+Each section is broken down by three grouping variables: Switzerland vs. other countries, career stage, and time since last SIB course attendance. All charts show all respondents by default. The career stage and SIB course charts include a **Swiss only** toggle button to restrict the view to Swiss respondents, because SIB courses primarily target the Swiss research community.
 
 ### Training needs: all topics
 
@@ -274,61 +304,80 @@ The following charts pool all five training topic areas (omics, computational me
 
 #### Switzerland vs. non-Switzerland
 
+Training need ratings across all topic areas, comparing Swiss respondents with those working elsewhere. Use **Show percentages** to toggle between raw counts and percentages.
+
 ```{r}
 #| label: fig-topics-swiss
-#| fig-cap: "Training needs across all topic areas — Switzerland vs. other countries."
-#| fig-height: 13
-#| fig-width: 16
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-plot_likert(
-  survey_long,
-  all_topic_questions,
-  split_by    = "region",
-  split_values = c("Switzerland", "Other"),
-  counts      = TRUE,
-  labels      = TRUE
-)
+cat(likert_toggle("topics-swiss",
+  all_expr = \(counts) plot_likert(
+    survey_long, all_topic_questions,
+    split_by = "region", split_values = c("Switzerland", "Other"),
+    counts = counts, labels = TRUE
+  ),
+  width = 16, height = 13
+))
 ```
 
 #### By career stage
 
+Training need ratings split by career stage. Bachelor's and Master's students are merged into 'Other'. Use **Show percentages** to switch between raw counts and percentages, and **Swiss only** to restrict the view to Swiss respondents.
+
 ```{r}
 #| label: fig-topics-career
-#| fig-cap: "Training needs across all topic areas, Swiss respondents, by career stage."
-#| fig-height: 26
-#| fig-width: 20
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-survey_long |>
-  filter(respondent_id %in% swiss_participants) |>
-  plot_likert(
-    all_topic_questions,
-    split_by     = "Which career stage are you currently in?",
-    split_values = c(career_stage_values, "Other"),
-    counts       = TRUE,
-    labels       = TRUE
-  )
+cat(likert_toggle("topics-career",
+  all_expr = \(counts) plot_likert(
+    survey_long, all_topic_questions,
+    split_by = "Which career stage are you currently in?",
+    split_values = career_likert_levels,
+    counts = counts, labels = TRUE
+  ),
+  swiss_expr = \(counts) survey_long |>
+    filter(respondent_id %in% swiss_participants) |>
+    plot_likert(
+      all_topic_questions,
+      split_by = "Which career stage are you currently in?",
+      split_values = career_likert_levels,
+      counts = counts, labels = TRUE
+    ),
+  width = 20, height = 26
+))
 ```
 
 #### By time since last SIB course
 
+Training need ratings split by time since last SIB course attendance. Use **Show percentages** to switch between raw counts and percentages, and **Swiss only** to restrict the view to Swiss respondents.
+
 ```{r}
 #| label: fig-topics-sib
-#| fig-cap: "Training needs across all topic areas, Swiss respondents, by time since last SIB course."
-#| fig-height: 13
-#| fig-width: 20
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-survey_long |>
-  filter(respondent_id %in% swiss_participants) |>
-  plot_likert(
-    all_topic_questions,
-    split_by     = "When did you last attend a SIB course? ",
+cat(likert_toggle("topics-sib",
+  all_expr = \(counts) plot_likert(
+    survey_long, all_topic_questions,
+    split_by = "When did you last attend a SIB course? ",
     split_values = sib_course_values,
-    counts       = TRUE,
-    labels       = TRUE
-  )
+    counts = counts, labels = TRUE
+  ),
+  swiss_expr = \(counts) survey_long |>
+    filter(respondent_id %in% swiss_participants) |>
+    plot_likert(
+      all_topic_questions,
+      split_by = "When did you last attend a SIB course? ",
+      split_values = sib_course_values,
+      counts = counts, labels = TRUE
+    ),
+  width = 20, height = 13
+))
 ```
 
 ### Participation barriers
@@ -337,61 +386,83 @@ Respondents rated how much each of a set of factors would be a barrier to attend
 
 #### Switzerland vs. non-Switzerland
 
+Barrier ratings comparing Swiss respondents with those working elsewhere. Use **Show percentages** to toggle between raw counts and percentages.
+
 ```{r}
 #| label: fig-barriers-swiss
-#| fig-cap: "Participation barriers — Switzerland vs. other countries."
-#| fig-height: 7
-#| fig-width: 16
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-plot_likert(
-  survey_long,
-  "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-  split_by     = "region",
-  split_values = c("Switzerland", "Other"),
-  counts       = TRUE,
-  labels       = TRUE
-)
+cat(likert_toggle("barriers-swiss",
+  all_expr = \(counts) plot_likert(
+    survey_long,
+    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+    split_by = "region", split_values = c("Switzerland", "Other"),
+    counts = counts, labels = TRUE
+  ),
+  width = 16, height = 7
+))
 ```
 
-#### By career stage (Swiss)
+#### By career stage
+
+Barrier ratings split by career stage. Bachelor's and Master's students are merged into 'Other'. Use **Show percentages** to switch between raw counts and percentages, and **Swiss only** to restrict the view to Swiss respondents.
 
 ```{r}
 #| label: fig-barriers-career
-#| fig-cap: "Participation barriers, Swiss respondents, by career stage."
-#| fig-height: 15
-#| fig-width: 20
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-survey_long |>
-  filter(respondent_id %in% swiss_participants) |>
-  plot_likert(
+cat(likert_toggle("barriers-career",
+  all_expr = \(counts) plot_likert(
+    survey_long,
     "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-    split_by     = "Which career stage are you currently in?",
-    split_values = c(career_stage_values, "Other"),
-    counts       = TRUE,
-    labels       = TRUE
-  )
+    split_by = "Which career stage are you currently in?",
+    split_values = career_likert_levels,
+    counts = counts, labels = TRUE
+  ),
+  swiss_expr = \(counts) survey_long |>
+    filter(respondent_id %in% swiss_participants) |>
+    plot_likert(
+      "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+      split_by = "Which career stage are you currently in?",
+      split_values = career_likert_levels,
+      counts = counts, labels = TRUE
+    ),
+  width = 20, height = 15
+))
 ```
 
-#### By time since last SIB course (Swiss)
+#### By time since last SIB course
+
+Barrier ratings split by time since last SIB course attendance. Use **Show percentages** to switch between raw counts and percentages, and **Swiss only** to restrict the view to Swiss respondents.
 
 ```{r}
 #| label: fig-barriers-sib
-#| fig-cap: "Participation barriers, Swiss respondents, by time since last SIB course."
-#| fig-height: 8
-#| fig-width: 20
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-survey_long |>
-  filter(respondent_id %in% swiss_participants) |>
-  plot_likert(
+cat(likert_toggle("barriers-sib",
+  all_expr = \(counts) plot_likert(
+    survey_long,
     "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-    split_by     = "When did you last attend a SIB course? ",
+    split_by = "When did you last attend a SIB course? ",
     split_values = sib_course_values,
-    counts       = TRUE,
-    labels       = TRUE
-  )
+    counts = counts, labels = TRUE
+  ),
+  swiss_expr = \(counts) survey_long |>
+    filter(respondent_id %in% swiss_participants) |>
+    plot_likert(
+      "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+      split_by = "When did you last attend a SIB course? ",
+      split_values = sib_course_values,
+      counts = counts, labels = TRUE
+    ),
+  width = 20, height = 8
+))
 ```
 
 ### Preferred learning formats
@@ -400,59 +471,81 @@ Respondents indicated how much they like or dislike each learning format on a sc
 
 #### Switzerland vs. non-Switzerland
 
+Format preference ratings comparing Swiss respondents with those working elsewhere. Use **Show percentages** to toggle between raw counts and percentages.
+
 ```{r}
 #| label: fig-formats-swiss
-#| fig-cap: "Learning format preferences — Switzerland vs. other countries."
-#| fig-height: 7
-#| fig-width: 16
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-plot_likert(
-  survey_long,
-  "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
-  split_by     = "region",
-  split_values = c("Switzerland", "Other"),
-  counts       = TRUE,
-  labels       = TRUE
-)
+cat(likert_toggle("formats-swiss",
+  all_expr = \(counts) plot_likert(
+    survey_long,
+    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+    split_by = "region", split_values = c("Switzerland", "Other"),
+    counts = counts, labels = TRUE
+  ),
+  width = 16, height = 7
+))
 ```
 
-#### By career stage (Swiss)
+#### By career stage
+
+Format preference ratings split by career stage. Bachelor's and Master's students are merged into 'Other'. Use **Show percentages** to switch between raw counts and percentages, and **Swiss only** to restrict the view to Swiss respondents.
 
 ```{r}
 #| label: fig-formats-career
-#| fig-cap: "Learning format preferences, Swiss respondents, by career stage."
-#| fig-height: 15
-#| fig-width: 20
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-survey_long |>
-  filter(respondent_id %in% swiss_participants) |>
-  plot_likert(
+cat(likert_toggle("formats-career",
+  all_expr = \(counts) plot_likert(
+    survey_long,
     "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
-    split_by     = "Which career stage are you currently in?",
-    split_values = c(career_stage_values, "Other"),
-    counts       = TRUE,
-    labels       = TRUE
-  )
+    split_by = "Which career stage are you currently in?",
+    split_values = career_likert_levels,
+    counts = counts, labels = TRUE
+  ),
+  swiss_expr = \(counts) survey_long |>
+    filter(respondent_id %in% swiss_participants) |>
+    plot_likert(
+      "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+      split_by = "Which career stage are you currently in?",
+      split_values = career_likert_levels,
+      counts = counts, labels = TRUE
+    ),
+  width = 20, height = 15
+))
 ```
 
-#### By time since last SIB course (Swiss)
+#### By time since last SIB course
+
+Format preference ratings split by time since last SIB course attendance. Use **Show percentages** to switch between raw counts and percentages, and **Swiss only** to restrict the view to Swiss respondents.
 
 ```{r}
 #| label: fig-formats-sib
-#| fig-cap: "Learning format preferences, Swiss respondents, by time since last SIB course."
-#| fig-height: 8
-#| fig-width: 20
-#| column: screen
+#| results: asis
+#| output: true
+#| echo: false
 
-survey_long |>
-  filter(respondent_id %in% swiss_participants) |>
-  plot_likert(
+cat(likert_toggle("formats-sib",
+  all_expr = \(counts) plot_likert(
+    survey_long,
     "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
-    split_by     = "When did you last attend a SIB course? ",
+    split_by = "When did you last attend a SIB course? ",
     split_values = sib_course_values,
-    counts       = TRUE,
-    labels       = TRUE
-  )
+    counts = counts, labels = TRUE
+  ),
+  swiss_expr = \(counts) survey_long |>
+    filter(respondent_id %in% swiss_participants) |>
+    plot_likert(
+      "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+      split_by = "When did you last attend a SIB course? ",
+      split_values = sib_course_values,
+      counts = counts, labels = TRUE
+    ),
+  width = 20, height = 8
+))
 ```
