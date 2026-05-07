@@ -8,7 +8,8 @@ normalize_str <- function(x) {
 # Render a ggplot to an inline SVG string.
 plot_to_svg <- function(p, width, height) {
   svg_file <- tempfile(fileext = ".svg")
-  svglite::svglite(svg_file, width = width, height = height)
+  svglite::svglite(svg_file, width = width, height = height,
+                   system_fonts = list(sans = "DejaVu Sans"))
   print(p)
   grDevices::dev.off()
   paste(readLines(svg_file, warn = FALSE), collapse = "\n")
@@ -63,8 +64,9 @@ likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL) {
     // Make injected SVG responsive to available container width.
     var svg = plotHost.querySelector("svg");
     if (svg) {
+      svg.removeAttribute("width");
+      svg.removeAttribute("height");
       svg.style.width = "100%";
-      svg.style.maxWidth = "100%";
       svg.style.height = "auto";
       svg.style.display = "block";
     }
@@ -218,7 +220,7 @@ plot_sib_course_pct <- function(
         ) +
         ggplot2::scale_fill_manual(values = sib_colors) +
         ggplot2::labs(x = "Percentage", y = NULL, fill = NULL) +
-        ggplot2::theme_minimal(base_size = base_size) +
+        ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
         ggplot2::theme(legend.position = "bottom")
     })()
 }
@@ -395,7 +397,7 @@ plot_likert <- function(
 		) +
 		ggplot2::scale_fill_manual(values = colors, breaks = scale_levels) +
 		ggplot2::labs(title = plot_title, x = NULL, y = NULL, fill = NULL) +
-		ggplot2::theme_minimal(base_size = base_size) +
+		ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
 		ggplot2::theme(legend.position = "bottom")
 
 	if (!is.null(split_by)) p <- p + ggplot2::facet_wrap(~ split_value)
