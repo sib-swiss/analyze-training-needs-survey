@@ -14,8 +14,16 @@ plot_to_svg <- function(p, width, height) {
   grDevices::dev.off()
 	paste(readLines(svg_file, warn = FALSE), collapse = "\n") |>
 		stringr::str_replace_all(
-			'font-family:\\s*"Helvetica";',
+			'font-family:\\s*"[^"]+";',
 			'font-family: sans-serif;'
+		) |>
+		stringr::str_replace_all(
+			"\\stextLength='[^']*'",
+			""
+		) |>
+		stringr::str_replace_all(
+			"\\slengthAdjust='[^']*'",
+			""
 		)
 }
 
