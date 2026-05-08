@@ -12,7 +12,11 @@ plot_to_svg <- function(p, width, height) {
                    system_fonts = list(sans = "DejaVu Sans"))
   print(p)
   grDevices::dev.off()
-  paste(readLines(svg_file, warn = FALSE), collapse = "\n")
+	paste(readLines(svg_file, warn = FALSE), collapse = "\n") |>
+		stringr::str_replace_all(
+			'font-family:\\s*"Helvetica";',
+			'font-family: sans-serif;'
+		)
 }
 
 # Escape a string for safe embedding inside a JS template literal (backticks).
@@ -66,6 +70,20 @@ likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL) {
     if (svg) {
       svg.removeAttribute("width");
       svg.removeAttribute("height");
+			svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+
+			var viewBox = svg.getAttribute("viewBox");
+			if (viewBox) {
+				var parts = viewBox.trim().split(/\\s+/);
+				if (parts.length === 4) {
+					var vbWidth = parseFloat(parts[2]);
+					var vbHeight = parseFloat(parts[3]);
+					if (vbWidth > 0 && vbHeight > 0) {
+						svg.style.aspectRatio = vbWidth + " / " + vbHeight;
+					}
+				}
+			}
+
       svg.style.width = "100%";
       svg.style.height = "auto";
       svg.style.display = "block";
