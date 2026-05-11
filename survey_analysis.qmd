@@ -43,7 +43,7 @@ library(glue)
 
 source("functions.R")
 
-excel_path   <- "data/SIB Training survey.xlsx"
+excel_path <- "data/SIB Training survey.xlsx"
 metadata_path <- "question_metadata.json"
 
 survey_results <- readxl::read_excel(excel_path)
@@ -60,9 +60,9 @@ survey_results$region <- ifelse(
 raw_meta <- jsonlite::read_json(metadata_path, simplifyVector = FALSE)$questions
 meta_df <- purrr::map_dfr(raw_meta, \(q) {
   tibble::tibble(
-    main_question    = q$main_question_stem,
+    main_question = q$main_question_stem,
     question_meta_type = q$type,
-    scale            = list(unlist(q$scale))
+    scale = list(unlist(q$scale))
   )
 })
 
@@ -91,7 +91,8 @@ survey_results <- survey_results |>
       "Other"
     ),
     `How would you describe the organisation in which you currently work?` = dplyr::if_else(
-      `How would you describe the organisation in which you currently work?` %in% org_type_values,
+      `How would you describe the organisation in which you currently work?` %in%
+        org_type_values,
       `How would you describe the organisation in which you currently work?`,
       "Other"
     )
@@ -103,13 +104,15 @@ survey_long <- survey_results |>
   dplyr::mutate(respondent_id = dplyr::row_number()) |>
   dplyr::mutate(dplyr::across(-respondent_id, as.character)) |>
   tidyr::pivot_longer(
-    cols      = -respondent_id,
-    names_to  = "raw_column",
+    cols = -respondent_id,
+    names_to = "raw_column",
     values_to = "answer"
   ) |>
   dplyr::left_join(question_dictionary, by = "raw_column") |>
   dplyr::mutate(answer = dplyr::na_if(answer, "")) |>
-  dplyr::mutate(answer = ifelse(answer == "Highly needed", "Very needed", answer))
+  dplyr::mutate(
+    answer = ifelse(answer == "Highly needed", "Very needed", answer)
+  )
 
 swiss_participants <- survey_long |>
   dplyr::filter(
@@ -141,7 +144,6 @@ The histogram below shows when respondents completed the survey, based on the re
 #| label: fig-timing
 #| fig-cap: "Distribution of survey submission times (completion time)."
 #| fig-height: 4
-
 survey_results |>
   mutate(completion_time = as.POSIXct(`Completion time`)) |>
   filter(!is.na(completion_time)) |>
@@ -161,7 +163,6 @@ The four charts below describe the composition of the respondent pool across car
 #| label: fig-career
 #| fig-cap: "Career stage of respondents."
 #| fig-height: 3.5
-
 survey_results |>
   rename(career_stage = `Which career stage are you currently in?`) |>
   filter(!is.na(career_stage)) |>
@@ -179,7 +180,6 @@ survey_results |>
 #| label: fig-country
 #| fig-cap: "Top countries of respondents (countries with ≥ 3 respondents shown)."
 #| fig-height: 4
-
 survey_results |>
   rename(country = `In which country do you work?`) |>
   filter(!is.na(country)) |>
@@ -198,7 +198,6 @@ survey_results |>
 #| label: fig-canton
 #| fig-cap: "Swiss respondents by canton."
 #| fig-height: 4
-
 survey_results |>
   rename(canton = `In which canton do you work?`) |>
   filter(!is.na(canton)) |>
@@ -217,15 +216,14 @@ survey_results |>
 #| fig-cap: "Time since last SIB course attendance across four respondent groupings. (A) Switzerland vs. other countries. (B) Canton (cantons with > 10 respondents only). (C) Career stage (Bachelor and Master's students grouped as 'Other'). (D) Organisation type."
 #| fig-height: 10
 #| fig-width: 12
-
 sib_col <- "When did you last attend a SIB course?"
 
 p_a <- plot_sib_course_pct(
   survey_results,
-  group_col    = "region",
+  group_col = "region",
   group_levels = c("Switzerland", "Other"),
-  sib_col      = sib_col,
-  sib_levels   = sib_course_values
+  sib_col = sib_col,
+  sib_levels = sib_course_values
 )
 
 canton_levels <- survey_results |>
@@ -238,11 +236,11 @@ canton_levels <- survey_results |>
 
 p_b <- plot_sib_course_pct(
   survey_results,
-  group_col    = "In which canton do you work?",
+  group_col = "In which canton do you work?",
   group_levels = canton_levels,
-  sib_col      = sib_col,
-  sib_levels   = sib_course_values,
-  min_n        = 11
+  sib_col = sib_col,
+  sib_levels = sib_course_values,
+  min_n = 11
 )
 
 career_sib_levels <- c(
@@ -254,21 +252,22 @@ career_sib_levels <- c(
 
 p_c <- plot_sib_course_pct(
   survey_results,
-  group_col    = "Which career stage are you currently in?",
+  group_col = "Which career stage are you currently in?",
   group_levels = career_sib_levels,
-  sib_col      = sib_col,
-  sib_levels   = sib_course_values
+  sib_col = sib_col,
+  sib_levels = sib_course_values
 )
 
 p_d <- plot_sib_course_pct(
   survey_results,
-  group_col    = "How would you describe the organisation in which you currently work?",
+  group_col = "How would you describe the organisation in which you currently work?",
   group_levels = org_type_values,
-  sib_col      = sib_col,
-  sib_levels   = sib_course_values
+  sib_col = sib_col,
+  sib_levels = sib_course_values
 )
 
-(p_a + p_b) / (p_c + p_d) +
+(p_a + p_b) /
+  (p_c + p_d) +
   plot_layout(guides = "collect") +
   plot_annotation(tag_levels = "A") &
   theme(legend.position = "bottom")
@@ -278,9 +277,10 @@ p_d <- plot_sib_course_pct(
 #| label: fig-org
 #| fig-cap: "Organisation type of respondents."
 #| fig-height: 3.5
-
 survey_results |>
-  rename(org = `How would you describe the organisation in which you currently work?`) |>
+  rename(
+    org = `How would you describe the organisation in which you currently work?`
+  ) |>
   filter(!is.na(org)) |>
   count(org) |>
   mutate(org = fct_reorder(org, n)) |>
@@ -311,14 +311,31 @@ Training need ratings across all topic areas, comparing Swiss respondents with t
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("topics-swiss",
-  all_expr = \(counts) plot_likert(
-    survey_long, all_topic_questions,
-    split_by = "region", split_values = c("Switzerland", "Other"),
-    counts = counts, labels = TRUE
-  ),
-  width = 16, height = 13
+cat(likert_toggle(
+  "topics-swiss",
+  all_expr = \(counts) {
+    plot_likert(
+      survey_long,
+      all_topic_questions,
+      split_by = "region",
+      split_values = c("Switzerland", "Other"),
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  pos_expr = \(counts) {
+    plot_likert(
+      survey_long,
+      all_topic_questions,
+      split_by = "region",
+      split_values = c("Switzerland", "Other"),
+      counts = counts,
+      labels = TRUE,
+      positive_only = TRUE
+    )
+  },
+  width = 16,
+  height = 13
 ))
 ```
 
@@ -331,23 +348,42 @@ Training need ratings split by career stage. Bachelor's and Master's students ar
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("topics-career",
-  all_expr = \(counts) plot_likert(
-    survey_long, all_topic_questions,
-    split_by = "Which career stage are you currently in?",
-    split_values = career_likert_levels,
-    counts = counts, labels = TRUE
-  ),
-  swiss_expr = \(counts) survey_long |>
-    filter(respondent_id %in% swiss_participants) |>
+cat(likert_toggle(
+  "topics-career",
+  all_expr = \(counts) {
     plot_likert(
+      survey_long,
       all_topic_questions,
       split_by = "Which career stage are you currently in?",
       split_values = career_likert_levels,
-      counts = counts, labels = TRUE
-    ),
-  width = 20, height = 26
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  swiss_expr = \(counts) {
+    survey_long |>
+      filter(respondent_id %in% swiss_participants) |>
+      plot_likert(
+        all_topic_questions,
+        split_by = "Which career stage are you currently in?",
+        split_values = career_likert_levels,
+        counts = counts,
+        labels = TRUE
+      )
+  },
+  pos_expr = \(counts) {
+    plot_likert(
+      survey_long,
+      all_topic_questions,
+      split_by = "Which career stage are you currently in?",
+      split_values = career_likert_levels,
+      counts = counts,
+      labels = TRUE,
+      positive_only = TRUE
+    )
+  },
+  width = 20,
+  height = 26
 ))
 ```
 
@@ -360,23 +396,98 @@ Training need ratings split by time since last SIB course attendance. Use **Show
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("topics-sib",
-  all_expr = \(counts) plot_likert(
-    survey_long, all_topic_questions,
-    split_by = "When did you last attend a SIB course? ",
-    split_values = sib_course_values,
-    counts = counts, labels = TRUE
-  ),
-  swiss_expr = \(counts) survey_long |>
-    filter(respondent_id %in% swiss_participants) |>
+cat(likert_toggle(
+  "topics-sib",
+  all_expr = \(counts) {
     plot_likert(
+      survey_long,
       all_topic_questions,
       split_by = "When did you last attend a SIB course? ",
       split_values = sib_course_values,
-      counts = counts, labels = TRUE
-    ),
-  width = 20, height = 13
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  swiss_expr = \(counts) {
+    survey_long |>
+      filter(respondent_id %in% swiss_participants) |>
+      plot_likert(
+        all_topic_questions,
+        split_by = "When did you last attend a SIB course? ",
+        split_values = sib_course_values,
+        counts = counts,
+        labels = TRUE
+      )
+  },
+  pos_expr = \(counts) {
+    plot_likert(
+      survey_long,
+      all_topic_questions,
+      split_by = "When did you last attend a SIB course? ",
+      split_values = sib_course_values,
+      counts = counts,
+      labels = TRUE,
+      positive_only = TRUE
+    )
+  },
+  width = 20,
+  height = 13
+))
+```
+
+#### By canton (selected)
+
+Training need ratings comparing the six largest Swiss cantons: Zurich, Bern, Vaud, Geneva, Fribourg, and Basel-Stadt. Use **Show percentages** to switch between raw counts and percentages, and **Positive only** to show only the top two response categories.
+
+```{r}
+#| label: fig-topics-canton
+#| results: asis
+#| output: true
+#| echo: false
+focus_cantons <- c(
+  "Zurich",
+  "Bern",
+  "Vaud",
+  "Geneva",
+  "Fribourg",
+  "Basel-Stadt"
+)
+
+canton_participants <- survey_long |>
+  dplyr::filter(
+    main_question == "In which canton do you work?",
+    answer %in% focus_cantons
+  ) |>
+  dplyr::select(respondent_id)
+
+survey_long_canton <- survey_long |>
+  dplyr::semi_join(canton_participants, by = "respondent_id")
+
+cat(likert_toggle(
+  "topics-canton",
+  all_expr = \(counts) {
+    plot_likert(
+      survey_long_canton,
+      all_topic_questions,
+      split_by = "In which canton do you work?",
+      split_values = focus_cantons,
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  pos_expr = \(counts) {
+    plot_likert(
+      survey_long_canton,
+      all_topic_questions,
+      split_by = "In which canton do you work?",
+      split_values = focus_cantons,
+      counts = counts,
+      labels = TRUE,
+      positive_only = TRUE
+    )
+  },
+  width = 24,
+  height = 26
 ))
 ```
 
@@ -393,15 +504,20 @@ Barrier ratings comparing Swiss respondents with those working elsewhere. Use **
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("barriers-swiss",
-  all_expr = \(counts) plot_likert(
-    survey_long,
-    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-    split_by = "region", split_values = c("Switzerland", "Other"),
-    counts = counts, labels = TRUE
-  ),
-  width = 16, height = 7
+cat(likert_toggle(
+  "barriers-swiss",
+  all_expr = \(counts) {
+    plot_likert(
+      survey_long,
+      "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+      split_by = "region",
+      split_values = c("Switzerland", "Other"),
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  width = 16,
+  height = 7
 ))
 ```
 
@@ -414,24 +530,31 @@ Barrier ratings split by career stage. Bachelor's and Master's students are merg
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("barriers-career",
-  all_expr = \(counts) plot_likert(
-    survey_long,
-    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-    split_by = "Which career stage are you currently in?",
-    split_values = career_likert_levels,
-    counts = counts, labels = TRUE
-  ),
-  swiss_expr = \(counts) survey_long |>
-    filter(respondent_id %in% swiss_participants) |>
+cat(likert_toggle(
+  "barriers-career",
+  all_expr = \(counts) {
     plot_likert(
+      survey_long,
       "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
       split_by = "Which career stage are you currently in?",
       split_values = career_likert_levels,
-      counts = counts, labels = TRUE
-    ),
-  width = 20, height = 15
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  swiss_expr = \(counts) {
+    survey_long |>
+      filter(respondent_id %in% swiss_participants) |>
+      plot_likert(
+        "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+        split_by = "Which career stage are you currently in?",
+        split_values = career_likert_levels,
+        counts = counts,
+        labels = TRUE
+      )
+  },
+  width = 20,
+  height = 15
 ))
 ```
 
@@ -444,24 +567,57 @@ Barrier ratings split by time since last SIB course attendance. Use **Show perce
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("barriers-sib",
-  all_expr = \(counts) plot_likert(
-    survey_long,
-    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-    split_by = "When did you last attend a SIB course? ",
-    split_values = sib_course_values,
-    counts = counts, labels = TRUE
-  ),
-  swiss_expr = \(counts) survey_long |>
-    filter(respondent_id %in% swiss_participants) |>
+cat(likert_toggle(
+  "barriers-sib",
+  all_expr = \(counts) {
     plot_likert(
+      survey_long,
       "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
       split_by = "When did you last attend a SIB course? ",
       split_values = sib_course_values,
-      counts = counts, labels = TRUE
-    ),
-  width = 20, height = 8
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  swiss_expr = \(counts) {
+    survey_long |>
+      filter(respondent_id %in% swiss_participants) |>
+      plot_likert(
+        "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+        split_by = "When did you last attend a SIB course? ",
+        split_values = sib_course_values,
+        counts = counts,
+        labels = TRUE
+      )
+  },
+  width = 20,
+  height = 8
+))
+```
+
+#### By canton (selected)
+
+Barrier ratings comparing the six largest Swiss cantons. Use **Show percentages** to toggle between raw counts and percentages.
+
+```{r}
+#| label: fig-barriers-canton
+#| results: asis
+#| output: true
+#| echo: false
+cat(likert_toggle(
+  "barriers-canton",
+  all_expr = \(counts) {
+    plot_likert(
+      survey_long_canton,
+      "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+      split_by = "In which canton do you work?",
+      split_values = focus_cantons,
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  width = 24,
+  height = 9
 ))
 ```
 
@@ -478,15 +634,20 @@ Format preference ratings comparing Swiss respondents with those working elsewhe
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("formats-swiss",
-  all_expr = \(counts) plot_likert(
-    survey_long,
-    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
-    split_by = "region", split_values = c("Switzerland", "Other"),
-    counts = counts, labels = TRUE
-  ),
-  width = 16, height = 7
+cat(likert_toggle(
+  "formats-swiss",
+  all_expr = \(counts) {
+    plot_likert(
+      survey_long,
+      "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+      split_by = "region",
+      split_values = c("Switzerland", "Other"),
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  width = 16,
+  height = 7
 ))
 ```
 
@@ -499,24 +660,31 @@ Format preference ratings split by career stage. Bachelor's and Master's student
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("formats-career",
-  all_expr = \(counts) plot_likert(
-    survey_long,
-    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
-    split_by = "Which career stage are you currently in?",
-    split_values = career_likert_levels,
-    counts = counts, labels = TRUE
-  ),
-  swiss_expr = \(counts) survey_long |>
-    filter(respondent_id %in% swiss_participants) |>
+cat(likert_toggle(
+  "formats-career",
+  all_expr = \(counts) {
     plot_likert(
+      survey_long,
       "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
       split_by = "Which career stage are you currently in?",
       split_values = career_likert_levels,
-      counts = counts, labels = TRUE
-    ),
-  width = 20, height = 15
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  swiss_expr = \(counts) {
+    survey_long |>
+      filter(respondent_id %in% swiss_participants) |>
+      plot_likert(
+        "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+        split_by = "Which career stage are you currently in?",
+        split_values = career_likert_levels,
+        counts = counts,
+        labels = TRUE
+      )
+  },
+  width = 20,
+  height = 15
 ))
 ```
 
@@ -529,23 +697,553 @@ Format preference ratings split by time since last SIB course attendance. Use **
 #| results: asis
 #| output: true
 #| echo: false
-
-cat(likert_toggle("formats-sib",
-  all_expr = \(counts) plot_likert(
-    survey_long,
-    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
-    split_by = "When did you last attend a SIB course? ",
-    split_values = sib_course_values,
-    counts = counts, labels = TRUE
-  ),
-  swiss_expr = \(counts) survey_long |>
-    filter(respondent_id %in% swiss_participants) |>
+cat(likert_toggle(
+  "formats-sib",
+  all_expr = \(counts) {
     plot_likert(
+      survey_long,
       "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
       split_by = "When did you last attend a SIB course? ",
       split_values = sib_course_values,
-      counts = counts, labels = TRUE
-    ),
-  width = 20, height = 8
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  swiss_expr = \(counts) {
+    survey_long |>
+      filter(respondent_id %in% swiss_participants) |>
+      plot_likert(
+        "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+        split_by = "When did you last attend a SIB course? ",
+        split_values = sib_course_values,
+        counts = counts,
+        labels = TRUE
+      )
+  },
+  width = 20,
+  height = 8
 ))
+```
+
+#### By canton (selected)
+
+Format preference ratings comparing the six largest Swiss cantons. Use **Show percentages** to toggle between raw counts and percentages.
+
+```{r}
+#| label: fig-formats-canton
+#| results: asis
+#| output: true
+#| echo: false
+cat(likert_toggle(
+  "formats-canton",
+  all_expr = \(counts) {
+    plot_likert(
+      survey_long_canton,
+      "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+      split_by = "In which canton do you work?",
+      split_values = focus_cantons,
+      counts = counts,
+      labels = TRUE
+    )
+  },
+  width = 24,
+  height = 9
+))
+```
+
+## Clustering respondents by course preferences
+
+To group respondents by training-course interests, we use a graph-based approach:
+
+1. Encode each respondent's Likert answers for all course-topic items as numeric values.
+2. Build one feature vector per respondent (one dimension per topic item).
+3. Compute respondent-to-respondent correlations across these features.
+4. Build a weighted graph where nodes are respondents and edges connect respondents with high positive correlation.
+5. Detect communities with Louvain clustering on the weighted graph.
+5. Profile each cluster using learning-format preferences.
+
+The chunk below implements this workflow.
+
+```{r}
+#| label: cluster-course-preferences
+format_question <- "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination"
+
+course_scale <- meta_df |>
+  dplyr::filter(main_question %in% all_topic_questions) |>
+  dplyr::pull(scale) |>
+  purrr::pluck(1)
+
+course_matrix_tbl <- survey_long |>
+  dplyr::filter(
+    question_type == "likert",
+    main_question %in% all_topic_questions,
+    !is.na(sub_question),
+    !is.na(answer)
+  ) |>
+  dplyr::mutate(
+    feature = paste(main_question, sub_question, sep = " :: "),
+    score = as.numeric(match(answer, course_scale))
+  ) |>
+  dplyr::select(respondent_id, feature, score) |>
+  tidyr::pivot_wider(names_from = feature, values_from = score)
+
+course_matrix <- course_matrix_tbl |>
+  dplyr::select(-respondent_id) |>
+  as.matrix()
+
+cluster_ids <- course_matrix_tbl$respondent_id
+
+course_matrix[is.na(course_matrix)] <- 1
+
+# Keep respondents with at least 70% answered course-topic items.
+# min_answered <- ceiling(0.7 * ncol(course_matrix))
+# keep_rows <- rowSums(!is.na(course_matrix)) >= min_answered
+
+cluster_ids <- course_matrix_tbl$respondent_id
+# course_matrix <- course_matrix[keep_rows, , drop = FALSE]
+
+# Pairwise respondent correlation network. NAs are handled pairwise.
+respondent_cor <- stats::cor(t(course_matrix), use = "pairwise.complete.obs")
+diag(respondent_cor) <- 0
+
+# Keep only stronger positive edges to avoid a fully connected graph.
+edge_threshold <- stats::quantile(
+  respondent_cor[upper.tri(respondent_cor)],
+  probs = 0.8,
+  na.rm = TRUE
+)
+adjacency <- respondent_cor
+adjacency[is.na(adjacency)] <- 0
+adjacency[adjacency < edge_threshold] <- 0
+adjacency[adjacency < 0] <- 0
+
+g <- igraph::graph_from_adjacency_matrix(
+  adjacency,
+  mode = "undirected",
+  weighted = TRUE,
+  diag = FALSE
+)
+
+igraph::V(g)$respondent_id <- cluster_ids
+
+set.seed(20260511)
+community <- igraph::cluster_louvain(
+  g,
+  weights = igraph::E(g)$weight,
+  resolution = 1
+)
+
+cluster_assignments <- tibble::tibble(
+  respondent_id = igraph::V(g)$respondent_id,
+  cluster = factor(paste("Cluster", igraph::membership(community)))
+)
+
+cluster_sizes_full <- cluster_assignments |>
+  dplyr::count(cluster, name = "n_respondents") |>
+  dplyr::arrange(cluster)
+
+valid_clusters <- cluster_sizes_full |>
+  dplyr::filter(n_respondents > 5) |>
+  dplyr::pull(cluster)
+
+cluster_assignments_filtered <- cluster_assignments |>
+  dplyr::filter(cluster %in% valid_clusters)
+
+cluster_lookup <- cluster_assignments_filtered |>
+  dplyr::mutate(cluster = as.character(cluster))
+
+survey_results <- survey_results |>
+  dplyr::mutate(respondent_id = dplyr::row_number()) |>
+  dplyr::left_join(cluster_lookup, by = "respondent_id") |>
+  dplyr::select(-respondent_id)
+
+cluster_split_values <- sort(unique(cluster_lookup$cluster))
+
+cluster_title_map <- c(
+  "Cluster 1" = "Cluster 1: AI and Data Infrastructure",
+  "Cluster 2" = "Cluster 2: Infectious Disease Genomics",
+  "Cluster 3" = "Cluster 3: Single-cell & Molecular Mechanisms",
+  "Cluster 4" = "Cluster 4: Proteomics & AI Imaging"
+)
+
+cluster_display_labels <- vapply(
+  cluster_split_values,
+  function(cl) {
+    if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+  },
+  character(1)
+)
+
+survey_long_cluster <- survey_long |>
+  dplyr::inner_join(cluster_lookup, by = "respondent_id")
+
+tibble::tibble(
+  metric = c("nodes", "edges", "edge_correlation_threshold", "communities"),
+  value = c(
+    igraph::vcount(g),
+    igraph::ecount(g),
+    round(edge_threshold, 3),
+    length(unique(igraph::membership(community)))
+  )
+)
+```
+
+```{r}
+#| label: cluster-topic-preference-order-csv
+
+topic_preference_order <- survey_long |>
+  dplyr::filter(
+    question_type == "likert",
+    main_question %in% all_topic_questions,
+    !is.na(sub_question),
+    !is.na(answer)
+  ) |>
+  dplyr::left_join(cluster_assignments_filtered, by = "respondent_id") |>
+  dplyr::filter(!is.na(cluster)) |>
+  dplyr::mutate(
+    score = dplyr::case_when(
+      answer == "Very needed" ~ 1L,
+      answer == "Absolutely essential" ~ 2L,
+      TRUE ~ 0L
+    )
+  ) |>
+  dplyr::group_by(cluster, main_question, sub_question) |>
+  dplyr::summarise(
+    cumulative_score = sum(score),
+    n_responses = dplyr::n(),
+    .groups = "drop"
+  ) |>
+  dplyr::group_by(cluster) |>
+  dplyr::arrange(
+    dplyr::desc(cumulative_score),
+    dplyr::desc(n_responses),
+    .by_group = TRUE
+  ) |>
+  dplyr::mutate(preference_rank = dplyr::row_number()) |>
+  dplyr::ungroup() |>
+  dplyr::select(
+    cluster,
+    preference_rank,
+    main_question,
+    sub_question,
+    cumulative_score,
+    n_responses
+  )
+
+output_csv <- "data/cluster_course_topic_preference_order.csv"
+readr::write_csv(topic_preference_order, output_csv)
+
+# topic_preference_order
+```
+
+
+```{r}
+#| label: fig-course-cluster-network
+#| fig-cap: "Respondent network from course-topic preference correlations. Edge widths indicate stronger positive correlation; colors indicate Louvain communities."
+#| fig-height: 5
+layout_fr <- igraph::layout_with_fr(g)
+
+cluster_levels <- cluster_assignments |>
+  dplyr::distinct(cluster) |>
+  dplyr::arrange(cluster) |>
+  dplyr::pull(cluster)
+
+cluster_palette <- scales::hue_pal()(length(cluster_levels))
+names(cluster_palette) <- cluster_levels
+
+vertex_clusters <- paste("Cluster", igraph::membership(community))
+vertex_colors <- unname(cluster_palette[vertex_clusters])
+
+edge_weights <- igraph::E(g)$weight
+edge_width <- scales::rescale(edge_weights, to = c(0.4, 2.5))
+
+plot(
+  g,
+  layout = layout_fr,
+  vertex.size = 4,
+  vertex.label = NA,
+  vertex.color = vertex_colors,
+  edge.width = edge_width,
+  edge.color = grDevices::adjustcolor("grey35", alpha.f = 0.35),
+  margin = 0.05
+)
+
+legend(
+  "topleft",
+  legend = names(cluster_palette),
+  col = unname(cluster_palette),
+  pch = 16,
+  pt.cex = 1.2,
+  bty = "n",
+  cex = 0.85
+)
+```
+
+### Cluster characterization by learning-format preferences
+
+The following charts show learning-format preferences for each cluster (clusters with > 5 respondents only). Sub-questions on the y-axis are ordered by mean preference score, so the most liked format appears at the top.
+
+```{r}
+#| label: fig-topics-by-cluster
+#| fig-cap: "Training needs per cluster (clusters with > 5 respondents only)."
+#| fig-height: 12
+for (cl in cluster_split_values) {
+  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+
+  p <- plot_likert(
+    survey_long_cluster |> dplyr::filter(cluster == cl),
+    all_topic_questions,
+    counts = TRUE,
+    labels = TRUE,
+    positive_only = TRUE
+  ) +
+    ggplot2::labs(subtitle = cl_title)
+
+  print(p)
+}
+```
+
+### Cluster descriptions
+
+Based on the learning preferences of the respondents, the clusters can be characterized based on the top-ranked course-topic preferences within each cluster. These characterizations are used to assign descriptive labels to each cluster.
+
+**Cluster 1: AI and Data Infrastructure**
+
+* **Interests:** This group is primarily interested in **artificial intelligence and data engineering**. Their top interests include AI-assisted coding, advanced AI techniques (RAGs, agentic AI), and the extraction of knowledge using LLMs. They also show a preference for operational aspects, such as GitHub actions (CI/CD), cloud computing, FAIR data principles, and reproducible workflows.  
+* **Likely Domain:** They likely work as **Bioinformaticians, Data Engineers, or Computational Scientists** who focus on building platforms, infrastructure, and AI-driven tools for life science research.  
+
+**Cluster 2: Infectious Disease Genomics**
+
+* **Interests:** This group is primarily interested in **infectious disease research**. Their top interests include Phylogenetics, Antimicrobial Resistance (AMR), Viral Bioinformatics, and Pathogen data analysis. While they have an interest in workflow reproducibility, their focus remains on how these tools apply to tracking and understanding microbes and viruses.  
+* **Likely Domain:** They likely work as **Microbiologists, Epidemiologists, or Pathogen Genomicists** working in public health, clinical diagnostics, or environmental microbiology (eDNA).  
+* **Summary:** **Infectious Disease Genomics**
+
+**Cluster 3: Single-cell & Molecular Mechanisms**
+
+* **Interests:** This group is primarily interested in **high-resolution molecular biology**. Their top interests include single-cell multiomics (RNA/ATAC-seq), epigenetics, non-coding RNA, and CRISPR-based screens. They are interested in functional and molecular biology and how different omics techniques integrate.  
+* **Likely Domain:** They likely work as **Molecular Biologists, Geneticists, or Cell Biologists** working in basic research, developmental biology, or functional genomics.  
+
+**Cluster 4: Proteomics & AI Imaging**
+
+* **Interests:** This group is primarily interested in **proteins and metabolites**. Their top interests include Proteomics and Mass Spectrometry, but they have a distinct secondary interest in combining this data with AI and medical image analysis. They are the most interested group in using AI for clinical/biomedical applications specifically involving multi-modal data.  
+* **Likely Domain:** They likely work as **Proteomics Specialists, Biochemists, or Clinical Researchers** who utilize mass spectrometry and imaging to find biomarkers or understand disease states.  
+
+
+### Cluster composition pie charts
+
+The following pie charts show category composition within each cluster (> 5 members only). Answer options come from the metadata JSON, with an explicit "Other" category always allowed. For high-cardinality categories, the top 5 most frequent non-"Other" answers are shown and all remaining answers are merged into "Other".
+
+```{r}
+#| label: cluster-pie-helpers
+
+get_question_choices <- function(stem) {
+  raw_meta |>
+    purrr::keep(~ identical(.x$main_question_stem, stem)) |>
+    purrr::pluck(1) |>
+    purrr::pluck("choices") |>
+    unlist(use.names = FALSE)
+}
+
+make_cluster_pie_data <- function(df, value_col, allowed_choices, top_n = 5) {
+  allowed_plus_other <- unique(c(allowed_choices, "Other"))
+
+  d <- df |>
+    dplyr::filter(!is.na(cluster)) |>
+    dplyr::filter(.data[[value_col]] %in% allowed_plus_other) |>
+    dplyr::transmute(cluster, value = .data[[value_col]])
+
+  non_other_levels <- d |>
+    dplyr::filter(value != "Other") |>
+    dplyr::count(value, sort = TRUE) |>
+    dplyr::pull(value)
+
+  if (length(non_other_levels) > top_n) {
+    keep_levels <- d |>
+      dplyr::filter(value != "Other") |>
+      dplyr::count(value, sort = TRUE) |>
+      dplyr::slice_head(n = top_n) |>
+      dplyr::pull(value)
+
+    d <- d |>
+      dplyr::mutate(
+        value = dplyr::case_when(
+          value == "Other" ~ "Other",
+          value %in% keep_levels ~ value,
+          TRUE ~ "Other"
+        )
+      )
+  }
+
+  d |>
+    dplyr::count(cluster, value, name = "n") |>
+    dplyr::group_by(cluster) |>
+    dplyr::mutate(pct = n / sum(n)) |>
+    dplyr::ungroup()
+}
+
+plot_cluster_pies <- function(d, title) {
+  value_order <- d |>
+    dplyr::group_by(value) |>
+    dplyr::summarise(total = sum(n), .groups = "drop") |>
+    dplyr::arrange(dplyr::desc(total)) |>
+    dplyr::pull(value)
+
+  if ("Other" %in% value_order) {
+    value_order <- c(setdiff(value_order, "Other"), "Other")
+  }
+
+  wrapped_levels <- stringr::str_wrap(value_order, width = 24)
+
+  d <- d |>
+    dplyr::mutate(
+      cluster = factor(cluster, levels = cluster_split_values, labels = cluster_display_labels),
+      value = factor(value, levels = value_order),
+      value_label = factor(stringr::str_wrap(as.character(value), width = 24), levels = wrapped_levels)
+    )
+
+  ggplot2::ggplot(d, ggplot2::aes(x = "", y = pct, fill = value_label)) +
+    ggplot2::geom_col(width = 1, colour = "white") +
+    ggplot2::coord_polar(theta = "y") +
+    ggplot2::facet_wrap(~ cluster) +
+    ggplot2::geom_text(
+      ggplot2::aes(label = ifelse(pct >= 0.05, scales::percent(pct, accuracy = 1), "")),
+      position = ggplot2::position_stack(vjust = 0.5),
+      size = 3,
+      colour = "grey15"
+    ) +
+    ggplot2::labs(title = title, fill = NULL) +
+    ggplot2::theme_void(base_size = 12) +
+    ggplot2::guides(fill = ggplot2::guide_legend(ncol = 1, byrow = TRUE)) +
+    ggplot2::theme(
+      legend.position = "right",
+      legend.text = ggplot2::element_text(size = 9, lineheight = 0.95),
+      strip.text = ggplot2::element_text(face = "bold"),
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+}
+
+career_choices <- get_question_choices("Which career stage are you currently in?")
+org_choices <- get_question_choices("How would you describe the organisation in which you currently work?")
+country_choices <- get_question_choices("In which country do you work?")
+canton_choices <- get_question_choices("In which canton do you work?")
+
+cluster_demo <- survey_results |>
+  dplyr::filter(cluster %in% cluster_split_values)
+
+cluster_demo <- cluster_demo |>
+  dplyr::mutate(
+    swiss_other = dplyr::case_when(
+      `In which country do you work?` %in% c("Switzerland", "Suisse") ~ "Switzerland",
+      `In which country do you work?` %in% country_choices ~ "Other",
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+```{r}
+#| label: fig-cluster-pie-career
+#| fig-cap: "Career stage composition per cluster."
+#| fig-height: 6
+
+career_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "Which career stage are you currently in?",
+  allowed_choices = career_choices,
+  top_n = 5
+)
+
+plot_cluster_pies(career_pie, "Career stage by cluster")
+```
+
+```{r}
+#| label: fig-cluster-pie-org
+#| fig-cap: "Organisation type composition per cluster."
+#| fig-height: 6
+
+org_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "How would you describe the organisation in which you currently work?",
+  allowed_choices = org_choices,
+  top_n = 5
+)
+
+plot_cluster_pies(org_pie, "Organisation type by cluster")
+```
+
+```{r}
+#| label: fig-cluster-pie-swiss
+#| fig-cap: "Swiss vs other composition per cluster."
+#| fig-height: 6
+
+swiss_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "swiss_other",
+  allowed_choices = c("Switzerland", "Other"),
+  top_n = 5
+)
+
+plot_cluster_pies(swiss_pie, "Switzerland vs Other by cluster")
+```
+
+```{r}
+#| label: fig-cluster-pie-canton
+#| fig-cap: "Canton composition per cluster (top 5 + Other)."
+#| fig-height: 6
+
+canton_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "In which canton do you work?",
+  allowed_choices = canton_choices,
+  top_n = 5
+)
+
+plot_cluster_pies(canton_pie, "Canton by cluster")
+```
+
+### Learning-format preferences by cluster
+
+After respondents are clustered by course-topic interests, we can inspect whether each cluster has a distinct preferred training format.
+
+### Likert plots by cluster (> 5 members only)
+
+The following charts are shown separately for each detected respondent cluster and include only clusters with more than 5 respondents. This ensures sub-question ordering is computed within each cluster.
+
+
+
+```{r}
+#| label: fig-barriers-by-cluster
+#| fig-cap: "Participation barriers per cluster (clusters with > 5 respondents only)."
+#| fig-height: 8
+for (cl in cluster_split_values) {
+  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+
+  p <- plot_likert(
+    survey_long_cluster |> dplyr::filter(cluster == cl),
+    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+    counts = TRUE,
+    labels = TRUE
+  ) +
+    ggplot2::labs(subtitle = cl_title)
+
+  print(p)
+}
+```
+
+```{r}
+#| label: fig-formats-by-cluster
+#| fig-cap: "Learning format preferences per cluster (clusters with > 5 respondents only)."
+#| fig-height: 8
+for (cl in cluster_split_values) {
+  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+
+  p <- plot_likert(
+    survey_long_cluster |> dplyr::filter(cluster == cl),
+    format_question,
+    counts = TRUE,
+    labels = TRUE
+  ) +
+    ggplot2::labs(subtitle = cl_title)
+
+  print(p)
+}
 ```

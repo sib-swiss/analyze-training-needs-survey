@@ -42,19 +42,29 @@ js_escape <- function(s) {
 # all_expr   : function(counts) returning a ggplot for all respondents
 # swiss_expr : optional function(counts) returning a ggplot for Swiss only
 # width, height : plot dimensions in inches
-likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL) {
+likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL, pos_expr = NULL) {
   has_swiss <- !is.null(swiss_expr)
+  has_pos   <- !is.null(pos_expr)
   jid       <- gsub("-", "_", id)
 
   svg_pct_all   <- js_escape(plot_to_svg(all_expr(counts = FALSE), width, height))
   svg_cnt_all   <- js_escape(plot_to_svg(all_expr(counts = TRUE),  width, height))
   svg_pct_swiss <- if (has_swiss) js_escape(plot_to_svg(swiss_expr(counts = FALSE), width, height)) else ""
   svg_cnt_swiss <- if (has_swiss) js_escape(plot_to_svg(swiss_expr(counts = TRUE),  width, height)) else ""
+  svg_pct_pos   <- if (has_pos) js_escape(plot_to_svg(pos_expr(counts = FALSE), width, height)) else ""
+  svg_cnt_pos   <- if (has_pos) js_escape(plot_to_svg(pos_expr(counts = TRUE),  width, height)) else ""
 
   swiss_btn <- if (has_swiss) glue::glue(
     '<button id="{id}-scope-btn" onclick="lt_{jid}.toggleScope()"
        style="padding:5px 14px;font-size:0.9em;cursor:pointer;margin-left:4px;">
        Swiss only
+     </button>'
+  ) else ""
+
+  pos_btn <- if (has_pos) glue::glue(
+    '<button id="{id}-pos-btn" onclick="lt_{jid}.togglePos()"
+       style="padding:5px 14px;font-size:0.9em;cursor:pointer;margin-left:4px;">
+       Positive only
      </button>'
   ) else ""
 
@@ -65,7 +75,9 @@ likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL) {
     "pct-all":   `', svg_pct_all,   '`,
     "cnt-all":   `', svg_cnt_all,   '`,
     "pct-swiss": `', svg_pct_swiss, '`,
-    "cnt-swiss": `', svg_cnt_swiss, '`
+    "cnt-swiss": `', svg_cnt_swiss, '`,
+    "pct-pos":   `', svg_pct_pos,   '`,
+    "cnt-pos":   `', svg_cnt_pos,   '`
   };
   var mode  = "cnt";
   var scope = "all";
@@ -109,6 +121,12 @@ likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL) {
       document.getElementById("', id, '-scope-btn").textContent =
         (scope === "all") ? "Swiss only" : "All respondents";
       render();
+    },
+    togglePos: function() {
+      scope = (scope === "pos") ? "all" : "pos";
+      document.getElementById("', id, '-pos-btn").textContent =
+        (scope === "pos") ? "All responses" : "Positive only";
+      render();
     }
   };
   render();
@@ -120,6 +138,7 @@ likert_toggle <- function(id, all_expr, width, height, swiss_expr = NULL) {
 		'    <button id="', id, '-mode-btn" onclick="lt_', jid, '.toggleMode()"',
 		' style="padding:5px 14px;font-size:0.9em;cursor:pointer;">Show percentages</button>\n',
 		'    ', swiss_btn, '\n',
+		'    ', pos_btn, '\n',
 		'  </div>\n',
 		'  <div id="', id, '-plot" style="width:100%;"></div>\n',
 		'</div>\n',
@@ -269,7 +288,8 @@ plot_likert <- function(
 	split_values = NULL,
 	counts = FALSE,
 	labels = FALSE,
-	base_size = 14
+	base_size = 14,
+	positive_only = FALSE
 ) {
 	df <- survey_long |>
 		dplyr::filter(
@@ -290,6 +310,12 @@ plot_likert <- function(
 	scale_levels <- df$scale[[1]]
 	n_levels     <- length(scale_levels)
 	mid_idx      <- ceiling(n_levels / 2)
+
+	# Positive-only mode: keep only the top two levels.
+	if (positive_only) {
+		pos_levels <- tail(scale_levels, 2)
+		df <- df |> dplyr::filter(answer %in% pos_levels)
+	}
 
 	if (!is.null(split_by)) {
 		# Match against normalized column names to handle trailing non-breaking spaces.
@@ -316,16 +342,30 @@ plot_likert <- function(
 		dplyr::mutate(
 			pct        = n / sum(n),
 			answer     = factor(answer, levels = scale_levels),
-			# Mid level contributes half-width to each side.
-			# Use raw counts or proportions depending on `counts` argument.
 			base_width = if (counts) as.double(n) else pct,
-			width      = dplyr::if_else(as.integer(answer) == mid_idx, base_width * 0.5, base_width)
+			width      = dplyr::if_else(!positive_only & as.integer(answer) == mid_idx, base_width * 0.5, base_width)
 		) |>
 		dplyr::ungroup() |>
 		dplyr::mutate(sub_question = stringr::str_wrap(sub_question, width = 40))
 
 	pal    <- RColorBrewer::brewer.pal(n_levels, "RdYlGn")
 	colors <- setNames(pal, scale_levels)
+
+	if (positive_only) {
+		# Simple stacked bars from 0 for the two positive levels.
+		pos_levels <- tail(scale_levels, 2)
+		# Use actual denominator = all respondents for this sub_question (restore from full tally).
+		segments <- tally |>
+			dplyr::filter(answer %in% pos_levels) |>
+			dplyr::mutate(answer = factor(answer, levels = pos_levels)) |>
+			dplyr::arrange(dplyr::across(dplyr::all_of(denom_vars)), answer) |>
+			dplyr::group_by(dplyr::across(dplyr::all_of(denom_vars))) |>
+			dplyr::mutate(
+				xmax = cumsum(width),
+				xmin = cumsum(width) - width
+			) |>
+			dplyr::ungroup()
+	} else {
 
 	# Compute xmin/xmax explicitly by cumulating outward from zero.
 	# Left side: mid first (innermost), then levels below mid outward.
@@ -350,13 +390,25 @@ plot_likert <- function(
 		make_side(tally, left_order,  -1),
 		make_side(tally, right_order,  1)
 	)
+	} # end else (diverging)
 
 	# Order sub-questions by mean scale score (most positive on top).
+	# In positive_only mode, re-score using ranks 1/2 across the two positive levels only.
 	# When counts = TRUE, weight by raw counts instead of proportions.
-	mean_score <- tally |>
-		dplyr::mutate(score = as.integer(answer) * if (counts) n else pct) |>
-		dplyr::group_by(sub_question) |>
-		dplyr::summarise(mean_score = sum(score), .groups = "drop")
+	mean_score <- if (positive_only) {
+		pos_levels <- tail(scale_levels, 2)
+		tally |>
+			dplyr::filter(answer %in% pos_levels) |>
+			dplyr::mutate(rank = match(as.character(answer), pos_levels)) |>
+			dplyr::mutate(score = rank * if (counts) n else pct) |>
+			dplyr::group_by(sub_question) |>
+			dplyr::summarise(mean_score = sum(score), .groups = "drop")
+	} else {
+		tally |>
+			dplyr::mutate(score = as.integer(answer) * if (counts) n else pct) |>
+			dplyr::group_by(sub_question) |>
+			dplyr::summarise(mean_score = sum(score), .groups = "drop")
+	}
 
 	sub_levels <- mean_score |>
 		dplyr::arrange(mean_score) |>
@@ -365,7 +417,13 @@ plot_likert <- function(
 	segments <- segments |>
 		dplyr::mutate(sub_question = factor(sub_question, levels = sub_levels))
 
-	x_scale <- if (counts) {
+	x_scale <- if (positive_only) {
+		if (counts) {
+			ggplot2::scale_x_continuous(labels = \(x) abs(x), expand = ggplot2::expansion(mult = c(0, 0.05)))
+		} else {
+			ggplot2::scale_x_continuous(labels = \(x) scales::percent(abs(x)), limits = c(0, 1), expand = ggplot2::expansion(mult = c(0, 0.05)))
+		}
+	} else if (counts) {
 		ggplot2::scale_x_continuous(labels = \(x) abs(x))
 	} else {
 		ggplot2::scale_x_continuous(labels = \(x) scales::percent(abs(x)), limits = c(-1, 1))
@@ -388,24 +446,36 @@ plot_likert <- function(
 			fill = answer
 		)
 	) +
-		ggplot2::geom_vline(xintercept = 0, linewidth = 0.4, colour = "grey30") +
+		{ if (!positive_only) ggplot2::geom_vline(xintercept = 0, linewidth = 0.4, colour = "grey30") } +
 		ggplot2::geom_rect() +
 		{
 			if (labels) {
-				# For the mid level, deduplicate: only label the right half (xmin == 0),
-				# placing the label at x=0 — the true centre of the full mid bar.
-				# For all other segments, place the label at the bar midpoint.
-				label_data <- segments |>
-					dplyr::mutate(
-						is_mid  = answer == scale_levels[mid_idx],
-						x_label = dplyr::if_else(is_mid, 0, (xmin + xmax) / 2),
-						label   = if (counts) {
-							as.character(n)
-						} else {
-							ifelse(abs(xmax - xmin) < 0.03, "", scales::percent(pct, accuracy = 1))
-						}
-					) |>
-					dplyr::filter(!(is_mid & xmax <= 0))
+				label_data <- if (positive_only) {
+					segments |>
+						dplyr::mutate(
+							x_label = (xmin + xmax) / 2,
+							label   = if (counts) {
+								as.character(n)
+							} else {
+								ifelse(abs(xmax - xmin) < 0.03, "", scales::percent(pct, accuracy = 1))
+							}
+						)
+				} else {
+					# For the mid level, deduplicate: only label the right half (xmin == 0),
+					# placing the label at x=0 — the true centre of the full mid bar.
+					# For all other segments, place the label at the bar midpoint.
+					segments |>
+						dplyr::mutate(
+							is_mid  = answer == scale_levels[mid_idx],
+							x_label = dplyr::if_else(is_mid, 0, (xmin + xmax) / 2),
+							label   = if (counts) {
+								as.character(n)
+							} else {
+								ifelse(abs(xmax - xmin) < 0.03, "", scales::percent(pct, accuracy = 1))
+							}
+						) |>
+						dplyr::filter(!(is_mid & xmax <= 0))
+				}
 
 				ggplot2::geom_text(
 					ggplot2::aes(x = x_label, y = as.numeric(sub_question), label = label),
