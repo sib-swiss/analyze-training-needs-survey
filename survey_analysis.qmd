@@ -1012,11 +1012,11 @@ readr::write_csv(topic_preference_order, output_csv)
 
 ### Cluster characterization by learning-format preferences
 
-The following charts show learning-format preferences for each cluster (clusters with > 5 respondents only). Sub-questions on the y-axis are ordered by mean preference score, so the most liked format appears at the top.
+The following charts show learning-format preferences for each selected cluster. Sub-questions on the y-axis are ordered by mean preference score, so the most liked format appears at the top.
 
 ```{r}
 #| label: fig-topics-by-cluster
-#| fig-cap: "Training needs per cluster (clusters with > 5 respondents only)."
+#| fig-cap: "Training needs per cluster."
 #| fig-subcap:
 #| - "Cluster 1: AI and Data"
 #| - "Cluster 2: Infectious Disease Genomics"
@@ -1098,7 +1098,7 @@ tibble::tibble(
 
 ### Cluster composition pie charts
 
-The following pie charts show category composition within each cluster (> 5 members only). Answer options come from the metadata JSON, with an explicit "Other" category always allowed. For high-cardinality categories, the top 5 most frequent non-"Other" answers are shown and all remaining answers are merged into "Other".
+The following pie charts show category composition within the four clusters. Answer options come from the metadata JSON, with an explicit "Other" category always allowed. For high-cardinality categories, the top 5 most frequent non-"Other" answers are shown and all remaining answers are merged into "Other".
 
 ```{r}
 #| label: cluster-pie-helpers
@@ -1201,15 +1201,13 @@ plot_cluster_pies(sib_course_pie, "Time since last SIB course by cluster")
 
 After respondents are clustered by course-topic interests, we can inspect whether each cluster has a distinct preferred training format.
 
-### Likert plots by cluster (> 5 members only)
+### Likert plots by cluster
 
 The following charts are shown separately for each detected respondent cluster and include only clusters with more than 5 respondents. This ensures sub-question ordering is computed within each cluster.
 
-
-
 ```{r}
 #| label: fig-barriers-by-cluster
-#| fig-cap: "Participation barriers per cluster (clusters with > 5 respondents only)."
+#| fig-cap: "Participation barriers per cluster."
 #| fig-subcap:
 #| - "Cluster 1: AI and Data"
 #| - "Cluster 2: Infectious Disease Genomics"
@@ -1233,7 +1231,7 @@ for (cl in valid_clusters) {
 
 ```{r}
 #| label: fig-formats-by-cluster
-#| fig-cap: "Learning format preferences per cluster (clusters with > 5 respondents only)."
+#| fig-cap: "Learning format preferences per cluster."
 #| fig-subcap:
 #| - "Cluster 1: AI and Data"
 #| - "Cluster 2: Infectious Disease Genomics"
@@ -1255,13 +1253,13 @@ for (cl in valid_clusters) {
 }
 ```
 
-### Tailoring training needs to respondent profiles
+### Summarizing training needs of respondent profiles
 
 Based on the course-topic preferences and learning-format preferences of each cluster (profile), we can tailor training offerings to better meet the needs of each group. 
 
 #### Cluster 1: AI and Data
 
-Respondents in cluster 1 show an interest in AI related topics (AI-assisted coding and using LLMs), operational topics, (e.g. GitHub actions (CI/CD) and cloud computing) and open data related topics (e.g. FAIR data principles and FAIR workflows). In terms of their course preferences, they are the most homogeneous group, shown by a much stronger cluster interconnectedness (@tbl-cluster-interconnectedness). They consist mostly of PhD students and post-docs (total 45%; @fig-cluster-pie-career) from Switzerland (84%; @fig-cluster-pie-swiss). Swiss respondents are mostly from the cantons Basel Stadt (30%) and Zurich (18%). Their largest barrier is the distance to the course location, and course fees play a lesser role (@fig-barriers-by-cluster-1). They have a clear dislike for AI-assisted learning formats, and show a preference for blended courses, BYOD, PBL, multi-day intensive and webinars (@fig-formats-by-cluster-1). 
+Respondents in cluster 1 show an interest in AI related topics (AI-assisted coding and using LLMs), operational topics, (e.g. GitHub actions (CI/CD) and cloud computing) and open data related topics (e.g. FAIR data principles and FAIR workflows). In terms of their course preferences, they are the most homogeneous group, shown by a much stronger cluster interconnectedness compared to the other clusters (@tbl-cluster-interconnectedness). They consist mostly of PhD students and post-docs (total 45%; @fig-cluster-pie-career) from Switzerland (84%; @fig-cluster-pie-swiss). Swiss respondents are mostly from the cantons Basel Stadt (30%) and Zurich (18%). Their largest barrier is the distance to the course location, and course fees play a lesser role (@fig-barriers-by-cluster-1). They have a clear dislike for AI-assisted learning formats, and show a preference for blended courses, BYOD, PBL, multi-day intensive and webinars (@fig-formats-by-cluster-1). 
 
 **Summary:** PhDs & postdocs, mostly Swiss (Basel Stadt & Zurich), prefer blended/BYOD/PBL/multi-day/webinars, dislike AI-assisted formats, distance is a barrier.
 
@@ -1282,3 +1280,51 @@ Respondents in cluster 3 show an interest in single-cell and functional genomics
 Respondents in cluster 4 show an interest in proteomics and mass spectrometry topics, but also in AI applications and imaging data. They have the highest proportion of senior scientists/PIs (32%; @fig-cluster-pie-career), followed by PhD candidates (26%). Similar to cluster 2, they have a relatively large proportion working outside academia (20%; @fig-cluster-pie-org), and consist out of a relatively low proportion of Swiss respondents (62%; @fig-cluster-pie-swiss). The Swiss respondents were mostly from Zurich (37%), other cantons and Vaud (both 20%; @fig-cluster-pie-canton). The distance to the course location is a significant barrier for many of them(@fig-barriers-by-cluster-4). They showed the least dislike for AI-assisted learning formats, and have a preference for blended courses, multi-day intensive, self-paced e-learning and webinars. BYOD and PBL are lesser preferred formats for this cluster compared to the other clusters (@fig-formats-by-cluster-4).
 
 **Summary:** Senior scientists/PIs and PhDs, high proportion of non-Swiss respondents. Swiss respondents mostly from Zurich, prefer blended/multi-day/self-paced/webinars, least dislike for AI-assisted formats, distance is a barrier, fees not so much.
+
+## Open-text responses: Topic gaps
+
+In addition to the predefined topic areas, respondents were asked to **"Please list any topics that you need that are not in our portfolio"**. The table below displays all non-empty responses, allowing you to browse feedback by cluster and search for specific keywords or topics. 
+
+```{r}
+#| label: open-text-responses-table
+
+open_text_responses <- survey_long |>
+  dplyr::filter(
+    main_question == "Please list any topics that you need that are not in our portfolio (https://sib.swiss/training) and were not mentioned above.",
+    !is.na(answer),
+    answer != ""
+  ) |>
+  dplyr::left_join(cluster_assignments_filtered, by = "respondent_id") |>
+  dplyr::select(respondent_id, cluster, answer) |>
+  dplyr::rename(
+    `Respondent ID` = respondent_id,
+    `Cluster` = cluster,
+    `Response` = answer
+  ) |>
+  dplyr::arrange(Cluster, `Respondent ID`)
+
+DT::datatable(
+  open_text_responses,
+  filter = "top",
+  rownames = FALSE,
+  options = list(
+    pageLength = 30,
+    columnDefs = list(
+      list(
+        targets = 2,
+        render = DT::JS(
+          "function(data, type, row) {",
+          "  return '<div style=\"white-space: normal; word-wrap: break-word;\">' + data + '</div>';",
+          "}"
+        )
+      )
+    ),
+    autoWidth = FALSE
+  ),
+  colnames = c("Respondent ID", "Cluster", "Feedback")
+) |>
+  DT::formatStyle(
+    "Response",
+    style = "white-space: normal; max-width: 600px;"
+  )
+```
