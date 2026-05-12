@@ -9,7 +9,6 @@ format:
     theme: cosmo
     embed-resources: true
 execute:
-  echo: false
   warning: false
   message: false
 ---
@@ -25,6 +24,7 @@ This report analyses responses to the SIB training needs survey. The survey coll
 3. **Training needs (all topics)** — Diverging Likert bar charts comparing response distributions across all five topic areas, broken down by Switzerland vs. other, career stage, and time since last SIB course attendance.
 4. **Participation barriers** — Same breakdown structure applied to perceived barriers to attending SIB courses.
 5. **Preferred learning formats** — Same breakdown structure applied to format preferences.
+6. **Clustering respondents by course preferences** — Graph-based clustering of respondents based on their course-topic ratings, to identify groups of learners with similar training needs and format preferences.
 
 ```{r}
 #| label: setup
@@ -753,20 +753,18 @@ cat(likert_toggle(
 
 ## Clustering respondents by course preferences
 
+The previous section compared training needs and format preferences across predefined respondent groups (e.g. career stage, region). However, the respondents come from heterogeneous backgrounds and may have diverse training needs that do not align with these predefined groups. To identify more nuanced patterns of training needs and format preferences, we can cluster respondents based on their responses to the course-topic items. Such an approach enables us to focus on the heterogeneous needs of the respondents and with that we can tailor our courses to specific groups of learners with similar interests.
+
 To group respondents by training-course interests, we use a graph-based approach:
 
-1. Encode each respondent's Likert answers for all course-topic items as numeric values.
-2. Build one feature vector per respondent (one dimension per topic item).
-3. Compute respondent-to-respondent correlations across these features.
-4. Build a weighted graph where nodes are respondents and edges connect respondents with high positive correlation.
-5. Detect communities with Louvain clustering on the weighted graph.
+1. Encode each respondent's Likert answers for all course-topic items as numeric values. We replace missing values with 1 (the lowest score, corresponding to "Not needed") to avoid losing respondents in the correlation step. This assumes that non-responses indicate a lack of interest in the topic, which is reasonable given the survey instructions.
+2. Compute respondent-to-respondent correlations across these features.
+3. Build a weighted graph where nodes are respondents and edges connect respondents with high positive correlation.
+4. Detect communities with Louvain clustering on the weighted graph.
 5. Profile each cluster using learning-format preferences.
-
-The chunk below implements this workflow.
 
 ```{r}
 #| label: cluster-course-preferences
-format_question <- "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination"
 
 course_scale <- meta_df |>
   dplyr::filter(main_question %in% all_topic_questions) |>
@@ -791,16 +789,8 @@ course_matrix <- course_matrix_tbl |>
   dplyr::select(-respondent_id) |>
   as.matrix()
 
-cluster_ids <- course_matrix_tbl$respondent_id
-
+# setting NAs to 1 (the lowest score, corresponding to "Not needed") allows us to keep respondents with some missing values in the correlation step, under the assumption that non-responses indicate a lack of interest in the topic.
 course_matrix[is.na(course_matrix)] <- 1
-
-# Keep respondents with at least 70% answered course-topic items.
-# min_answered <- ceiling(0.7 * ncol(course_matrix))
-# keep_rows <- rowSums(!is.na(course_matrix)) >= min_answered
-
-cluster_ids <- course_matrix_tbl$respondent_id
-# course_matrix <- course_matrix[keep_rows, , drop = FALSE]
 
 # Pairwise respondent correlation network. NAs are handled pairwise.
 respondent_cor <- stats::cor(t(course_matrix), use = "pairwise.complete.obs")
@@ -812,10 +802,11 @@ edge_threshold <- stats::quantile(
   probs = 0.8,
   na.rm = TRUE
 )
+
+# create graph from adjacency matrix
 adjacency <- respondent_cor
 adjacency[is.na(adjacency)] <- 0
 adjacency[adjacency < edge_threshold] <- 0
-adjacency[adjacency < 0] <- 0
 
 g <- igraph::graph_from_adjacency_matrix(
   adjacency,
@@ -824,8 +815,10 @@ g <- igraph::graph_from_adjacency_matrix(
   diag = FALSE
 )
 
-igraph::V(g)$respondent_id <- cluster_ids
+# add respondent_id as vertex attribute for later merging with survey data
+igraph::V(g)$respondent_id <- course_matrix_tbl$respondent_id
 
+# louvain community detection with edge weights and resolution parameter to control cluster granularity. 
 set.seed(20260511)
 community <- igraph::cluster_louvain(
   g,
@@ -833,11 +826,118 @@ community <- igraph::cluster_louvain(
   resolution = 1
 )
 
+# create a tibble mapping respondent_id to cluster membership
 cluster_assignments <- tibble::tibble(
   respondent_id = igraph::V(g)$respondent_id,
   cluster = factor(paste("Cluster", igraph::membership(community)))
 )
+```
 
+In @fig-course-cluster-network we visualize the respondent network with edges representing a correlation greater than `r round(edge_threshold, 3)` and colored by Louvain community. The subsequent table (@tbl-cluster-summary) summarizes the network and clustering results, and @tbl-cluster-interconnectedness describes the internal interconnectedness of each cluster (number of internal edges, edge density, mean internal degree, and mean internal edge weight). Based on the graph visualization and interconnectedness metrics, we can see that respondents in cluster 1 provided generally more similar answers to course preference compared to the other clusters.
+
+```{r}
+#| label: fig-course-cluster-network
+#| fig-cap: "Respondent network from course-topic preference correlations. Edge widths indicate stronger positive correlation; colors indicate Louvain communities."
+#| fig-height: 5
+
+
+layout_fr <- igraph::layout_with_fr(g)
+
+cluster_levels <- cluster_assignments |>
+  dplyr::distinct(cluster) |>
+  dplyr::arrange(cluster) |>
+  dplyr::pull(cluster)
+
+cluster_palette <- scales::hue_pal()(length(cluster_levels))
+names(cluster_palette) <- cluster_levels
+
+vertex_clusters <- paste("Cluster", igraph::membership(community))
+vertex_colors <- unname(cluster_palette[vertex_clusters])
+
+edge_weights <- igraph::E(g)$weight
+edge_width <- scales::rescale(edge_weights, to = c(0.4, 2.5))
+
+plot(
+  g,
+  layout = layout_fr,
+  vertex.size = 4,
+  vertex.label = NA,
+  vertex.color = vertex_colors,
+  edge.width = edge_width,
+  edge.color = grDevices::adjustcolor("grey35", alpha.f = 0.35),
+  margin = 0.05
+)
+
+legend(
+  "topleft",
+  legend = names(cluster_palette),
+  col = unname(cluster_palette),
+  pch = 16,
+  pt.cex = 1.2,
+  bty = "n",
+  cex = 0.85
+)
+```
+
+```{r}
+#| label: tbl-cluster-summary
+#| tbl-cap: "Summary of respondent network and Louvain communities based on course-topic preferences (clusters with ≤ 5 respondents filtered out)."
+
+tibble::tibble(
+  metric = c("nodes", "edges", "edge_correlation_threshold", "communities"),
+  value = c(
+    igraph::vcount(g),
+    igraph::ecount(g),
+    round(edge_threshold, 3),
+    length(unique(igraph::membership(community)))
+  )
+) |> knitr::kable()
+```
+
+```{r}
+#| label: tbl-cluster-interconnectedness
+#| tbl-cap: "Within-cluster interconnectedness scores (internal edge count and density)."
+
+membership_vec <- igraph::membership(community)
+
+cluster_interconnectedness <- sort(unique(membership_vec)) |>
+  purrr::map_dfr(function(cl_id) {
+    vids <- which(membership_vec == cl_id)
+    subg <- igraph::induced_subgraph(g, vids = vids)
+    
+    # number of nodes and edges within the cluster
+    n_nodes <- igraph::vcount(subg)
+    # number of edges with both endpoints in the cluster
+    internal_edges <- igraph::ecount(subg)
+    # number of possible edges within the cluster (undirected, no self-loops)
+    possible_edges <- n_nodes * (n_nodes - 1) / 2
+    # total weight of edges within the cluster
+    total_internal_weight <- if (internal_edges > 0) sum(igraph::E(subg)$weight) else 0
+
+    tibble::tibble(
+      cluster = paste("Cluster", cl_id),
+      n_nodes = n_nodes,
+      internal_edges = internal_edges,
+      possible_edges = possible_edges,
+      # proportion of possible edges that actually exist within the cluster
+      edge_density = ifelse(possible_edges > 0, internal_edges / possible_edges, NA_real_),
+      # average number of internal connections per node within the cluster
+      mean_internal_degree = mean(igraph::degree(subg)),
+      total_internal_weight = total_internal_weight,
+      mean_internal_weight = ifelse(internal_edges > 0, total_internal_weight / internal_edges, NA_real_)
+    )
+  })
+
+cluster_interconnectedness |>
+  dplyr::arrange(cluster) |>
+  dplyr::mutate(edge_density = round(edge_density, 3), mean_internal_weight = round(mean_internal_weight, 3)) |>
+  knitr::kable()
+```
+
+```{r}
+#| label: cluster-filtering
+
+# get cluster sizes and filter out clusters with ≤ 5 respondents to ensure meaningful profiles in the next step
 cluster_sizes_full <- cluster_assignments |>
   dplyr::count(cluster, name = "n_respondents") |>
   dplyr::arrange(cluster)
@@ -857,36 +957,11 @@ survey_results <- survey_results |>
   dplyr::left_join(cluster_lookup, by = "respondent_id") |>
   dplyr::select(-respondent_id)
 
-cluster_split_values <- sort(unique(cluster_lookup$cluster))
-
-cluster_title_map <- c(
-  "Cluster 1" = "Cluster 1: AI and Data Infrastructure",
-  "Cluster 2" = "Cluster 2: Infectious Disease Genomics",
-  "Cluster 3" = "Cluster 3: Single-cell & Molecular Mechanisms",
-  "Cluster 4" = "Cluster 4: Proteomics & AI Imaging"
-)
-
-cluster_display_labels <- vapply(
-  cluster_split_values,
-  function(cl) {
-    if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
-  },
-  character(1)
-)
-
 survey_long_cluster <- survey_long |>
   dplyr::inner_join(cluster_lookup, by = "respondent_id")
-
-tibble::tibble(
-  metric = c("nodes", "edges", "edge_correlation_threshold", "communities"),
-  value = c(
-    igraph::vcount(g),
-    igraph::ecount(g),
-    round(edge_threshold, 3),
-    length(unique(igraph::membership(community)))
-  )
-)
 ```
+
+
 
 ```{r}
 #| label: cluster-topic-preference-order-csv
@@ -933,50 +1008,6 @@ topic_preference_order <- survey_long |>
 output_csv <- "data/cluster_course_topic_preference_order.csv"
 readr::write_csv(topic_preference_order, output_csv)
 
-# topic_preference_order
-```
-
-
-```{r}
-#| label: fig-course-cluster-network
-#| fig-cap: "Respondent network from course-topic preference correlations. Edge widths indicate stronger positive correlation; colors indicate Louvain communities."
-#| fig-height: 5
-layout_fr <- igraph::layout_with_fr(g)
-
-cluster_levels <- cluster_assignments |>
-  dplyr::distinct(cluster) |>
-  dplyr::arrange(cluster) |>
-  dplyr::pull(cluster)
-
-cluster_palette <- scales::hue_pal()(length(cluster_levels))
-names(cluster_palette) <- cluster_levels
-
-vertex_clusters <- paste("Cluster", igraph::membership(community))
-vertex_colors <- unname(cluster_palette[vertex_clusters])
-
-edge_weights <- igraph::E(g)$weight
-edge_width <- scales::rescale(edge_weights, to = c(0.4, 2.5))
-
-plot(
-  g,
-  layout = layout_fr,
-  vertex.size = 4,
-  vertex.label = NA,
-  vertex.color = vertex_colors,
-  edge.width = edge_width,
-  edge.color = grDevices::adjustcolor("grey35", alpha.f = 0.35),
-  margin = 0.05
-)
-
-legend(
-  "topleft",
-  legend = names(cluster_palette),
-  col = unname(cluster_palette),
-  pch = 16,
-  pt.cex = 1.2,
-  bty = "n",
-  cex = 0.85
-)
 ```
 
 ### Cluster characterization by learning-format preferences
@@ -986,9 +1017,16 @@ The following charts show learning-format preferences for each cluster (clusters
 ```{r}
 #| label: fig-topics-by-cluster
 #| fig-cap: "Training needs per cluster (clusters with > 5 respondents only)."
+#| fig-subcap:
+#| - "Cluster 1: AI and Data"
+#| - "Cluster 2: Infectious Disease Genomics"
+#| - "Cluster 3: Functional Genomics"
+#| - "Cluster 4: Biochemistry, Imaging & AI"
 #| fig-height: 12
-for (cl in cluster_split_values) {
-  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+
+
+for (cl in valid_clusters) {
+  # cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
 
   p <- plot_likert(
     survey_long_cluster |> dplyr::filter(cluster == cl),
@@ -997,7 +1035,7 @@ for (cl in cluster_split_values) {
     labels = TRUE,
     positive_only = TRUE
   ) +
-    ggplot2::labs(subtitle = cl_title)
+    ggplot2::labs(title = cl)
 
   print(p)
 }
@@ -1007,10 +1045,10 @@ for (cl in cluster_split_values) {
 
 Based on the learning preferences of the respondents, the clusters can be characterized based on the top-ranked course-topic preferences within each cluster. These characterizations are used to assign descriptive labels to each cluster.
 
-**Cluster 1: AI and Data Infrastructure**
+**Cluster 1: AI and Data**
 
 * **Interests:** This group is primarily interested in **artificial intelligence and data engineering**. Their top interests include AI-assisted coding, advanced AI techniques (RAGs, agentic AI), and the extraction of knowledge using LLMs. They also show a preference for operational aspects, such as GitHub actions (CI/CD), cloud computing, FAIR data principles, and reproducible workflows.  
-* **Likely Domain:** They likely work as **Bioinformaticians, Data Engineers, or Computational Scientists** who focus on building platforms, infrastructure, and AI-driven tools for life science research.  
+* **Likely Domain:** They likely work as **Bioinformaticians, Data Scientists, or Computational Scientists** who focus on building platforms, infrastructure, and AI-driven tools for life science research.  
 
 **Cluster 2: Infectious Disease Genomics**
 
@@ -1018,16 +1056,45 @@ Based on the learning preferences of the respondents, the clusters can be charac
 * **Likely Domain:** They likely work as **Microbiologists, Epidemiologists, or Pathogen Genomicists** working in public health, clinical diagnostics, or environmental microbiology (eDNA).  
 * **Summary:** **Infectious Disease Genomics**
 
-**Cluster 3: Single-cell & Molecular Mechanisms**
+**Cluster 3: Functional Genomics**
 
 * **Interests:** This group is primarily interested in **high-resolution molecular biology**. Their top interests include single-cell multiomics (RNA/ATAC-seq), epigenetics, non-coding RNA, and CRISPR-based screens. They are interested in functional and molecular biology and how different omics techniques integrate.  
 * **Likely Domain:** They likely work as **Molecular Biologists, Geneticists, or Cell Biologists** working in basic research, developmental biology, or functional genomics.  
 
-**Cluster 4: Proteomics & AI Imaging**
+**Cluster 4: Biochemistry, Imaging & AI**
 
 * **Interests:** This group is primarily interested in **proteins and metabolites**. Their top interests include Proteomics and Mass Spectrometry, but they have a distinct secondary interest in combining this data with AI and medical image analysis. They are the most interested group in using AI for clinical/biomedical applications specifically involving multi-modal data.  
 * **Likely Domain:** They likely work as **Proteomics Specialists, Biochemists, or Clinical Researchers** who utilize mass spectrometry and imaging to find biomarkers or understand disease states.  
 
+```{r}
+#| label: cluster-labeling
+#| tbl-cap: "Cluster sizes and display labels (clusters with ≤ 5 respondents filtered out)."
+
+# map cluster values to display labels (e.g. "Cluster 1" -> "Cluster 1: AI and Data") for later use in plotting
+
+cluster_title_map <- c(
+  "Cluster 1" = "Cluster 1: AI and Data",
+  "Cluster 2" = "Cluster 2: Infectious Disease Genomics",
+  "Cluster 3" = "Cluster 3: Functional Genomics",
+  "Cluster 4" = "Cluster 4: Biochemistry, Imaging & AI"
+)
+
+cluster_display_labels <- vapply(
+  valid_clusters,
+  function(cl) {
+    if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+  },
+  character(1)
+)
+
+# overview of cluster sizes (after filtering out small clusters) and their titles
+tibble::tibble(
+  cluster = valid_clusters,
+  n_respondents = cluster_sizes_full$n_respondents[match(cluster, cluster_sizes_full$cluster)],
+  display_label = cluster_display_labels
+) |> knitr::kable()
+
+```
 
 ### Cluster composition pie charts
 
@@ -1036,99 +1103,14 @@ The following pie charts show category composition within each cluster (> 5 memb
 ```{r}
 #| label: cluster-pie-helpers
 
-get_question_choices <- function(stem) {
-  raw_meta |>
-    purrr::keep(~ identical(.x$main_question_stem, stem)) |>
-    purrr::pluck(1) |>
-    purrr::pluck("choices") |>
-    unlist(use.names = FALSE)
-}
-
-make_cluster_pie_data <- function(df, value_col, allowed_choices, top_n = 5) {
-  allowed_plus_other <- unique(c(allowed_choices, "Other"))
-
-  d <- df |>
-    dplyr::filter(!is.na(cluster)) |>
-    dplyr::filter(.data[[value_col]] %in% allowed_plus_other) |>
-    dplyr::transmute(cluster, value = .data[[value_col]])
-
-  non_other_levels <- d |>
-    dplyr::filter(value != "Other") |>
-    dplyr::count(value, sort = TRUE) |>
-    dplyr::pull(value)
-
-  if (length(non_other_levels) > top_n) {
-    keep_levels <- d |>
-      dplyr::filter(value != "Other") |>
-      dplyr::count(value, sort = TRUE) |>
-      dplyr::slice_head(n = top_n) |>
-      dplyr::pull(value)
-
-    d <- d |>
-      dplyr::mutate(
-        value = dplyr::case_when(
-          value == "Other" ~ "Other",
-          value %in% keep_levels ~ value,
-          TRUE ~ "Other"
-        )
-      )
-  }
-
-  d |>
-    dplyr::count(cluster, value, name = "n") |>
-    dplyr::group_by(cluster) |>
-    dplyr::mutate(pct = n / sum(n)) |>
-    dplyr::ungroup()
-}
-
-plot_cluster_pies <- function(d, title) {
-  value_order <- d |>
-    dplyr::group_by(value) |>
-    dplyr::summarise(total = sum(n), .groups = "drop") |>
-    dplyr::arrange(dplyr::desc(total)) |>
-    dplyr::pull(value)
-
-  if ("Other" %in% value_order) {
-    value_order <- c(setdiff(value_order, "Other"), "Other")
-  }
-
-  wrapped_levels <- stringr::str_wrap(value_order, width = 24)
-
-  d <- d |>
-    dplyr::mutate(
-      cluster = factor(cluster, levels = cluster_split_values, labels = cluster_display_labels),
-      value = factor(value, levels = value_order),
-      value_label = factor(stringr::str_wrap(as.character(value), width = 24), levels = wrapped_levels)
-    )
-
-  ggplot2::ggplot(d, ggplot2::aes(x = "", y = pct, fill = value_label)) +
-    ggplot2::geom_col(width = 1, colour = "white") +
-    ggplot2::coord_polar(theta = "y") +
-    ggplot2::facet_wrap(~ cluster) +
-    ggplot2::geom_text(
-      ggplot2::aes(label = ifelse(pct >= 0.05, scales::percent(pct, accuracy = 1), "")),
-      position = ggplot2::position_stack(vjust = 0.5),
-      size = 3,
-      colour = "grey15"
-    ) +
-    ggplot2::labs(title = title, fill = NULL) +
-    ggplot2::theme_void(base_size = 12) +
-    ggplot2::guides(fill = ggplot2::guide_legend(ncol = 1, byrow = TRUE)) +
-    ggplot2::theme(
-      legend.position = "right",
-      legend.text = ggplot2::element_text(size = 9, lineheight = 0.95),
-      strip.text = ggplot2::element_text(face = "bold"),
-      plot.title = ggplot2::element_text(face = "bold")
-    )
-}
-
 career_choices <- get_question_choices("Which career stage are you currently in?")
 org_choices <- get_question_choices("How would you describe the organisation in which you currently work?")
 country_choices <- get_question_choices("In which country do you work?")
 canton_choices <- get_question_choices("In which canton do you work?")
+sib_course_choices <- get_question_choices("When did you last attend a SIB course?")
 
 cluster_demo <- survey_results |>
-  dplyr::filter(cluster %in% cluster_split_values)
+  dplyr::filter(cluster %in% valid_clusters)
 
 cluster_demo <- cluster_demo |>
   dplyr::mutate(
@@ -1200,6 +1182,21 @@ canton_pie <- make_cluster_pie_data(
 plot_cluster_pies(canton_pie, "Canton by cluster")
 ```
 
+```{r}
+#| label: fig-cluster-pie-sib-course
+#| fig-cap: "Time since last SIB course attendance per cluster."
+#| fig-height: 6
+
+sib_course_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "When did you last attend a SIB course?",
+  allowed_choices = sib_course_choices,
+  top_n = 5
+)
+
+plot_cluster_pies(sib_course_pie, "Time since last SIB course by cluster")
+```
+
 ### Learning-format preferences by cluster
 
 After respondents are clustered by course-topic interests, we can inspect whether each cluster has a distinct preferred training format.
@@ -1213,17 +1210,22 @@ The following charts are shown separately for each detected respondent cluster a
 ```{r}
 #| label: fig-barriers-by-cluster
 #| fig-cap: "Participation barriers per cluster (clusters with > 5 respondents only)."
+#| fig-subcap:
+#| - "Cluster 1: AI and Data"
+#| - "Cluster 2: Infectious Disease Genomics"
+#| - "Cluster 3: Functional Genomics"
+#| - "Cluster 4: Biochemistry, Imaging & AI"
 #| fig-height: 8
-for (cl in cluster_split_values) {
+for (cl in valid_clusters) {
   cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
 
   p <- plot_likert(
     survey_long_cluster |> dplyr::filter(cluster == cl),
     "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-    counts = TRUE,
+    counts = FALSE,
     labels = TRUE
   ) +
-    ggplot2::labs(subtitle = cl_title)
+    ggplot2::labs(title = cl_title)
 
   print(p)
 }
@@ -1232,18 +1234,51 @@ for (cl in cluster_split_values) {
 ```{r}
 #| label: fig-formats-by-cluster
 #| fig-cap: "Learning format preferences per cluster (clusters with > 5 respondents only)."
+#| fig-subcap:
+#| - "Cluster 1: AI and Data"
+#| - "Cluster 2: Infectious Disease Genomics"
+#| - "Cluster 3: Functional Genomics"
+#| - "Cluster 4: Biochemistry, Imaging & AI"
 #| fig-height: 8
-for (cl in cluster_split_values) {
+for (cl in valid_clusters) {
   cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
 
   p <- plot_likert(
     survey_long_cluster |> dplyr::filter(cluster == cl),
-    format_question,
-    counts = TRUE,
+    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+    counts = FALSE,
     labels = TRUE
   ) +
-    ggplot2::labs(subtitle = cl_title)
+    ggplot2::labs(title = cl_title)
 
   print(p)
 }
 ```
+
+### Tailoring training needs to respondent profiles
+
+Based on the course-topic preferences and learning-format preferences of each cluster (profile), we can tailor training offerings to better meet the needs of each group. 
+
+#### Cluster 1: AI and Data
+
+Respondents in cluster 1 show an interest in AI related topics (AI-assisted coding and using LLMs), operational topics, (e.g. GitHub actions (CI/CD) and cloud computing) and open data related topics (e.g. FAIR data principles and FAIR workflows). In terms of their course preferences, they are the most homogeneous group, shown by a much stronger cluster interconnectedness (@tbl-cluster-interconnectedness). They consist mostly of PhD students and post-docs (total 45%; @fig-cluster-pie-career) from Switzerland (84%; @fig-cluster-pie-swiss). Swiss respondents are mostly from the cantons Basel Stadt (30%) and Zurich (18%). Their largest barrier is the distance to the course location, and course fees play a lesser role (@fig-barriers-by-cluster-1). They have a clear dislike for AI-assisted learning formats, and show a preference for blended courses, BYOD, PBL, multi-day intensive and webinars (@fig-formats-by-cluster-1). 
+
+**Summary:** PhDs & postdocs, mostly Swiss (Basel Stadt & Zurich), prefer blended/BYOD/PBL/multi-day/webinars, dislike AI-assisted formats, distance is a barrier.
+
+#### Cluster 2: Infectious Disease Genomics
+
+Respondents in cluster 2 show an interest in infectious disease related topics (e.g. phylogenetics, AMR, viral bioinformatics). Regarding career and organization type they are the most heterogeneous group. Most of them are senior scientist or PI (27%; @fig-cluster-pie-career) or have another profession (25%). With 24% cluster 2 has the highest proportion of non-academic respondents(@fig-cluster-pie-org). They are possibly the most spread over Switzerland (27% in 'Other' cantons) followed by Bern (19%; @fig-cluster-pie-canton). Course fees can be a significant barrier to them (@fig-barriers-by-cluster-2). They show a 50/50 tendency regarding AI-assisted learning formats, and have a preference for blended courses, BYOD, PBL, multi-day intensive and webinars (@fig-formats-by-cluster-2).
+
+**Summary:** Senior scientists/PIs and others, heterogeneous Swiss distribution, prefer blended/BYOD/PBL/multi-day/webinars, mixed feelings about AI-assisted formats, course fees can be a barrier.
+
+#### Cluster 3: Functional Genomics
+
+Respondents in cluster 3 show an interest in single-cell and functional genomics topics (e.g. single-cell multiomics, epigenetics). They are mostly PhD students and senior scientists/PIs (34% and 30% respectively; @fig-cluster-pie-career) working in academia (87%; @fig-cluster-pie-org). They are the group with relatively fewest Swiss respondents (56%; @fig-cluster-pie-swiss). Most of them are either from Vaud, Geneva or Zurich (29%, 24% and 21% respectively; @fig-cluster-pie-canton). The distance to the course location is a significant barrier for many of them, and course fees play less of a role (@fig-barriers-by-cluster-3). Together with cluster 1, they show the strongest dislike for AI-assisted learning formats, and have a preference for blended courses, BYOD, PBL, and multi-day intensive courses (@fig-formats-by-cluster-3). 
+
+**Summary:** PhDs and senior scientists/PIs, high proportion of non-Swiss respondents. Swiss respondents from Vaud, Geneva, and Zurich, prefer blended/BYOD/PBL/multi-day, dislike AI-assisted formats, distance is a barrier, fees not so much.
+
+#### Cluster 4: Biochemistry, Imaging & AI
+
+Respondents in cluster 4 show an interest in proteomics and mass spectrometry topics, but also in AI applications and imaging data. They have the highest proportion of senior scientists/PIs (32%; @fig-cluster-pie-career), followed by PhD candidates (26%). Similar to cluster 2, they have a relatively large proportion working outside academia (20%; @fig-cluster-pie-org), and consist out of a relatively low proportion of Swiss respondents (62%; @fig-cluster-pie-swiss). The Swiss respondents were mostly from Zurich (37%), other cantons and Vaud (both 20%; @fig-cluster-pie-canton). The distance to the course location is a significant barrier for many of them(@fig-barriers-by-cluster-4). They showed the least dislike for AI-assisted learning formats, and have a preference for blended courses, multi-day intensive, self-paced e-learning and webinars. BYOD and PBL are lesser preferred formats for this cluster compared to the other clusters (@fig-formats-by-cluster-4).
+
+**Summary:** Senior scientists/PIs and PhDs, high proportion of non-Swiss respondents. Swiss respondents mostly from Zurich, prefer blended/multi-day/self-paced/webinars, least dislike for AI-assisted formats, distance is a barrier, fees not so much.

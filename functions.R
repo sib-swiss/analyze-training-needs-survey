@@ -500,3 +500,106 @@ plot_likert <- function(
 
 	p
 }
+
+# Retrieve the choices vector for a given main question stem from the metadata.
+get_question_choices <- function(stem) {
+  raw_meta |>
+    purrr::keep(~ identical(.x$main_question_stem, stem)) |>
+    purrr::pluck(1) |>
+    purrr::pluck("choices") |>
+    unlist(use.names = FALSE)
+}
+
+# Prepare data for faceted pie charts of cluster composition by a categorical variable.
+make_cluster_pie_data <- function(df, value_col, allowed_choices, top_n = 5) {
+  allowed_plus_other <- unique(c(allowed_choices, "Other"))
+
+  d <- df |>
+    dplyr::filter(!is.na(cluster)) |>
+    dplyr::filter(.data[[value_col]] %in% allowed_plus_other) |>
+    dplyr::transmute(cluster, value = .data[[value_col]])
+
+  non_other_levels <- d |>
+    dplyr::filter(value != "Other") |>
+    dplyr::count(value, sort = TRUE) |>
+    dplyr::pull(value)
+
+  if (length(non_other_levels) > top_n) {
+    keep_levels <- d |>
+      dplyr::filter(value != "Other") |>
+      dplyr::count(value, sort = TRUE) |>
+      dplyr::slice_head(n = top_n) |>
+      dplyr::pull(value)
+
+    d <- d |>
+      dplyr::mutate(
+        value = dplyr::case_when(
+          value == "Other" ~ "Other",
+          value %in% keep_levels ~ value,
+          TRUE ~ "Other"
+        )
+      )
+  }
+
+  d |>
+    dplyr::count(cluster, value, name = "n") |>
+    dplyr::group_by(cluster) |>
+    dplyr::mutate(pct = n / sum(n)) |>
+    dplyr::ungroup()
+}
+
+# Faceted pie charts of cluster composition by a categorical variable.
+plot_cluster_pies <- function(d, title) {
+  value_order <- d |>
+    dplyr::group_by(value) |>
+    dplyr::summarise(total = sum(n), .groups = "drop") |>
+    dplyr::arrange(dplyr::desc(total)) |>
+    dplyr::pull(value)
+
+  if ("Other" %in% value_order) {
+    value_order <- c(setdiff(value_order, "Other"), "Other")
+  }
+
+  wrapped_levels <- stringr::str_wrap(value_order, width = 24)
+
+  d <- d |>
+    dplyr::mutate(
+      cluster = factor(cluster, levels = valid_clusters, labels = cluster_display_labels),
+      value = factor(value, levels = value_order),
+      value_label = factor(stringr::str_wrap(as.character(value), width = 24), levels = wrapped_levels)
+    )
+
+	n_vals <- nlevels(d$value_label)
+	base_pal <- unname(grDevices::palette.colors(palette = "Tableau 10"))
+	fill_pal <- if (n_vals <= length(base_pal)) {
+		base_pal[seq_len(n_vals)]
+	} else {
+		grDevices::colorRampPalette(base_pal)(n_vals)
+	}
+	names(fill_pal) <- levels(d$value_label)
+	other_label <- stringr::str_wrap("Other", width = 24)
+	if (other_label %in% names(fill_pal)) {
+		fill_pal[[other_label]] <- "lightgrey"
+	}
+
+  ggplot2::ggplot(d, ggplot2::aes(x = "", y = pct, fill = value_label)) +
+    ggplot2::geom_col(width = 1, colour = "white") +
+		ggplot2::scale_fill_manual(values = fill_pal, drop = FALSE) +
+    ggplot2::coord_polar(theta = "y") +
+    ggplot2::facet_wrap(~ cluster) +
+    ggplot2::geom_text(
+      ggplot2::aes(label = ifelse(pct >= 0.05, scales::percent(pct, accuracy = 1), "")),
+      position = ggplot2::position_stack(vjust = 0.5),
+      size = 3,
+      colour = "grey15"
+    ) +
+    ggplot2::labs(title = title, fill = NULL) +
+    ggplot2::theme_void(base_size = 12) +
+    ggplot2::guides(fill = ggplot2::guide_legend(ncol = 1, byrow = TRUE)) +
+    ggplot2::theme(
+      legend.position = "right",
+      legend.text = ggplot2::element_text(size = 9, lineheight = 0.95),
+      strip.text = ggplot2::element_text(face = "bold"),
+      plot.title = ggplot2::element_text(face = "bold")
+    )
+}
