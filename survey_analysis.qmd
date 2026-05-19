@@ -1201,9 +1201,33 @@ plot_cluster_pies(sib_course_pie, "Time since last SIB course by cluster")
 
 After respondents are clustered by course-topic interests, we can inspect whether each cluster has a distinct preferred training format.
 
-### Likert plots by cluster
+```{r}
+#| label: fig-formats-by-cluster
+#| fig-cap: "Learning format preferences per cluster."
+#| fig-subcap:
+#| - "Cluster 1: AI and Data"
+#| - "Cluster 2: Infectious Disease Genomics"
+#| - "Cluster 3: Functional Genomics"
+#| - "Cluster 4: Biochemistry, Imaging & AI"
+#| fig-height: 8
+for (cl in valid_clusters) {
+  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
 
-The following charts are shown separately for each detected respondent cluster and include only clusters with more than 5 respondents. This ensures sub-question ordering is computed within each cluster.
+  p <- plot_likert(
+    survey_long_cluster |> dplyr::filter(cluster == cl),
+    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+    counts = FALSE,
+    labels = TRUE
+  ) +
+    ggplot2::labs(title = cl_title)
+
+  print(p)
+}
+```
+
+### Barriers by cluster
+
+After respondents are clustered by course-topic interests, we can inspect whether each cluster has a distinct set of barriers to participation.
 
 ```{r}
 #| label: fig-barriers-by-cluster
@@ -1220,30 +1244,6 @@ for (cl in valid_clusters) {
   p <- plot_likert(
     survey_long_cluster |> dplyr::filter(cluster == cl),
     "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-    counts = FALSE,
-    labels = TRUE
-  ) +
-    ggplot2::labs(title = cl_title)
-
-  print(p)
-}
-```
-
-```{r}
-#| label: fig-formats-by-cluster
-#| fig-cap: "Learning format preferences per cluster."
-#| fig-subcap:
-#| - "Cluster 1: AI and Data"
-#| - "Cluster 2: Infectious Disease Genomics"
-#| - "Cluster 3: Functional Genomics"
-#| - "Cluster 4: Biochemistry, Imaging & AI"
-#| fig-height: 8
-for (cl in valid_clusters) {
-  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
-
-  p <- plot_likert(
-    survey_long_cluster |> dplyr::filter(cluster == cl),
-    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
     counts = FALSE,
     labels = TRUE
   ) +
