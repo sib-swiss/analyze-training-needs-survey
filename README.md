@@ -12,4 +12,4 @@ Feel free to reuse the questions, results and/or analysis. If you do, please tak
 - Anonymized responses: `data/SIB Training survey.xlsx`
 - Raw report quarto markdown file: `survey_analysis.qmd`
 
-Find the full analysis report at [sib-swiss.github.io/analyze_training_needs_survey](https://sib-swiss.github.io/analyze_training_needs_survey).
+Find the full analysis report at [sib-swiss.github.io/analyze_training_needs_survey](https://sib-swiss.github.io/analyze-training-needs-survey/).
