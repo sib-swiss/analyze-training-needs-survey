@@ -4,7 +4,9 @@ The SIB Training Group delivers 60+ training events annually across academic, in
 
 The goal was to identify emerging scientific topics of interest, preferred learning formats, and common structural/organizational barriers to participation.​ With that it directly informs the strategic design of the 2027 SIB Training programme. 
 
-Feel free to reuse the questions, results and/or analysis. If you do, please take into consideration the CC-BY license and acknowledge us by referring to .. 
+Feel free to reuse the questions, results and/or analysis. If you do, please take into consideration the CC-BY license and acknowledge us by citing:
+
+DiCola, V., Zahn, M., Marek, D., Rossier, G., Duchemin, W., Wyss, T., Carlevaro-Fita, J., Tanwar, D., Vaucher, M., Palagi, P., & van Geest, G. (2026). SIB training survey 2026 - data and analysis. Zenodo. https://doi.org/10.5281/zenodo.20446694
 
 ## Setup
 
