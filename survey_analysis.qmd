@@ -946,6 +946,9 @@ valid_clusters <- cluster_sizes_full |>
   dplyr::filter(n_respondents > 5) |>
   dplyr::pull(cluster)
 
+all_clusters <- cluster_sizes_full |>
+  dplyr::pull(cluster)
+
 cluster_assignments_filtered <- cluster_assignments |>
   dplyr::filter(cluster %in% valid_clusters)
 
@@ -961,7 +964,21 @@ survey_long_cluster <- survey_long |>
   dplyr::inner_join(cluster_lookup, by = "respondent_id")
 ```
 
+Cluster 5 consists of 1 respondent who indicated 'absolutely essential' for all course topics, which is an outlier response pattern. 
 
+```{r}
+invalid_clusters <- all_clusters[!all_clusters %in% valid_clusters]
+
+invalid_respondent_ids <- cluster_assignments |>
+  dplyr::filter(cluster %in% invalid_clusters) |>
+  dplyr::pull(respondent_id)
+
+survey_long |>
+  dplyr::filter(respondent_id %in% invalid_respondent_ids) |>
+  dplyr::select(respondent_id, main_question, sub_question, answer) |>
+  dplyr::arrange(respondent_id) |>
+  knitr::kable()
+```
 
 ```{r}
 #| label: cluster-topic-preference-order-csv

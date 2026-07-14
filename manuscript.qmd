@@ -1,0 +1,640 @@
+---
+title: "A network-based approach to characterize heterogeneous bioinformatics training needs: Analysis of the SIB training survey"
+bibliography: references.bib
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+  docx:
+    number-sections: true
+    reference-doc: custom-reference-doc.docx
+execute:
+  echo: false
+  warning: false
+  message: false
+abstract: | 
+    Bioinformatics training providers face significant challenges in designing curricula for highly heterogeneous researcher communities spanning multiple career stages, scientific domains, and organizational types. This complexity is further amplified by the rapid advances in computational life scienes, like integration of Artificial Intelligence (AI), which shifts the baseline competencies researchers require. This study presents a systematic methodology for identifying training requirements using survey data from the SIB Swiss Institute of Bioinformatics. Moving beyond simple descriptive statistics, we implement a graph-based data processing workflow. Respondents are modeled as nodes in a network, with connections indicating pairwise correlation across 5-point Likert-type questions covering five primary computational biology domains. By applying Louvain community detection to this network, we uncover four distinct respondent archetypes characterized by coherent, specific training demands: AI and Data, Infectious Disease Genomics, Functional Genomics, and Biochemistry, Imaging & AI. We profile these clusters against preferred learning modalities (e.g., Problem-Based Learning, asynchronous e-learning) and structural participation barriers (e.g., physical distance, institutional funding constraints). Our results demonstrate that data-driven learner profiling provides a more actionable foundation for modular curriculum design than traditional demographic subdivisions, enabling training organizations to optimize resource allocation and enhance pedagogical efficacy in an AI-disrupted educational landscape.
+---
+
+```{r}
+#| label: setup
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(forcats)
+library(ggplot2)
+library(jsonlite)
+library(readxl)
+library(purrr)
+library(scales)
+library(patchwork)
+library(svglite)
+library(glue)
+
+source("functions.R")
+
+excel_path <- "data/SIB Training survey.xlsx"
+metadata_path <- "question_metadata.json"
+
+survey_results <- readxl::read_excel(excel_path)
+
+# remove leading/trailing whitespace from column names
+colnames(survey_results) <- str_trim(colnames(survey_results))
+
+survey_results$region <- ifelse(
+  survey_results$`In which country do you work?` == "Switzerland",
+  "Switzerland",
+  "Other"
+)
+
+raw_meta <- jsonlite::read_json(metadata_path, simplifyVector = FALSE)$questions
+meta_df <- purrr::map_dfr(raw_meta, \(q) {
+  tibble::tibble(
+    main_question = q$main_question_stem,
+    question_meta_type = q$type,
+    scale = list(unlist(q$scale))
+  )
+})
+
+org_type_values <- c(
+  "Academia/ Research institution",
+  "Healthcare",
+  "Industry",
+  "Non-profit organisation"
+)
+
+# Career stages used in Likert breakdowns; anything else (including Bachelor
+# and Master's students) is recoded to "Other" in the single mutate below.
+career_likert_levels <- c(
+  "PhD candidate",
+  "Postdoctoral researcher",
+  "Senior scientist/ Principal investigator",
+  "Research assistant/ Technician",
+  "Other"
+)
+
+survey_results <- survey_results |>
+  dplyr::mutate(
+    `Which career stage are you currently in?` = dplyr::if_else(
+      `Which career stage are you currently in?` %in% career_likert_levels,
+      `Which career stage are you currently in?`,
+      "Other"
+    ),
+    `How would you describe the organisation in which you currently work?` = dplyr::if_else(
+      `How would you describe the organisation in which you currently work?` %in%
+        org_type_values,
+      `How would you describe the organisation in which you currently work?`,
+      "Other"
+    )
+  )
+
+question_dictionary <- build_question_dictionary(survey_results, meta_df)
+
+survey_long <- survey_results |>
+  dplyr::mutate(respondent_id = dplyr::row_number()) |>
+  dplyr::mutate(dplyr::across(-respondent_id, as.character)) |>
+  tidyr::pivot_longer(
+    cols = -respondent_id,
+    names_to = "raw_column",
+    values_to = "answer"
+  ) |>
+  dplyr::left_join(question_dictionary, by = "raw_column") |>
+  dplyr::mutate(answer = dplyr::na_if(answer, "")) |>
+  dplyr::mutate(
+    answer = ifelse(answer == "Highly needed", "Very needed", answer)
+  )
+
+swiss_participants <- survey_long |>
+  dplyr::filter(
+    main_question == "In which country do you work?",
+    answer == "Switzerland"
+  ) |>
+  dplyr::pull(respondent_id)
+
+all_topic_questions <- c(
+  "Data management and knowledge representation: specify your training needs You can skip topics that are not relevant",
+  "Computational methods and AI: specify your training needs You can skip topics that are not relevant",
+  "Omics analysis: specify your training needs You can skip topics that are not relevant",
+  "Biomedicine and pathogens: specify your training needs You can skip topics that are not relevant",
+  "Biodiversity and Ecology: specify your training needs You can skip topics that are not relevant"
+)
+
+sib_course_values <- c(
+  "I have never attended a SIB course",
+  "More than a year ago",
+  "Within the last year"
+)
+```
+
+## Introduction
+
+The rapid and continuous evolution of high-throughput experimental technologies, large-scale data infrastructures, and data management has made bioinformatics training a necessity for life science researchers [@via_ten_2011]. National and international training providers, such as the SIB Swiss Institute of Bioinformatics, aim to provide high-quality, impactful courses to a heterogeneous audience. This audience ranges from academic PhD candidates requiring upskilling in specific analytical competences to corporate senior scientists or clinical personnel seeking broad overviews of emerging computational resources.
+
+In recent years, the fast growth of Artificial Intelligence (AI) and Large Language Models (LLMs) has transformed both the bioinformatics landscape and the nature of computational training itself [@wen_bin_goh_rethinking_2026; @ruan_large_2026]. AI is no longer just an advanced topic for specialized computer scientists; tools like GitHub Copilot and ChatGPT have shifted how researchers write code, automate workflows and retrieve data [@jiang_survey_2026]. This paradigm shift creates a dual challenge for training. First, curricula must adapt to include training on incorporating AI in their workflows but also on responsible and ethical AI usage. Second, pedagogical delivery must take into account that LLMs have become the most important source of information for many learners, which may either alleviate or worsen existing gaps in student engagement and prerequisite knowledge.
+
+The design of a bioinformatics training curriculum can be based on three dimensions: course topics, format, and logistics. The course topics address educational needs, while format involves alignment to preferences regarding learning formats (e.g., intensive block courses, problem-based learning, self-paced e-learning). Logistics involves mitigating systemic barriers to attendance, including geographical distance and financial restrictions. Previous training needs surveys have analyzed these dimensions independently or slice responses using classical demographic categories like career stage or geographic region [@attwood_global_2019; @drew_revisiting_2023]. While informative, such an approach assumes that individuals within a demographic sub-group are homogeneous. However, a post-doctoral researcher in structural biology may share more training needs with an industry mass-spectrometry specialist than with a post-doctoral researcher in plant ecology.
+
+To address this limitation, this paper describes a robust, reproducible, and data-driven framework for mapping training needs along the three dimensions using graph-based clustering. By converting individual responses into a correlation graph, we define clusters of learners who share common training needs, regardless of their institutional or regional backgrounds. We detail the underlying data preprocessing pipeline, a conceptual overview of graph construction, and subsequent characterization of the isolated learner profiles with a strong emphasis on how AI needs shape these profiles.
+
+## Methods 
+
+### Survey design and destribution
+
+The SIB training needs survey collected information using a multi-tiered survey composed of main questions (acting as structural stems) and specific sub-questions representing individual items or technical sub-topics. All survey questions can be found on Zenodo **link**. In summary, the questionnaire evaluated course topics, barriers and formats using 5-point Likert-type scales:
+
+* Training needs: Respondents evaluated their structural training requirement for detailed sub-topics nested within five global computational domains: *Omics analysis*, *Computational methods and AI*, *Data management and knowledge representation*, *Biomedicine and pathogens*, and *Biodiversity and Ecology*. The evaluation metric utilized an ordinal scale ranging from low necessity to urgent application needs (*Not needed* to *Absolutely essential*).
+* Perceived participation barriers: Structural and logistical impediments were quantified using an ordinal scale anchored by *No barrier* and *Critical barrier*. Evaluated factors included course fees, travel distance, timing constraints, and prerequisite alignment.
+* Preferred learning formats: Pedagogical format delivery options (e.g., webinars, bring your own data, problem-based learning, multi-day intensive courses, self-paced e-learning, and AI-assisted learning) were rated via a preference scale ranging from *Strongly dislike* to *Strongly like*.
+
+Demographic covariates were also collected to characterize the respondent pool: career stage, geographic demographics (working country and Swiss canton), organization type (Academia, Healthcare, Industry, Non-profit), and historical interaction (time elapsed since attending their last SIB training course).
+
+The survey was distributed through the SIB training mailing list, the SIB network and social media. The survey was open for responses for a period of 6 weeks, between March 17th and April 30th 2026, and participation was voluntary and anonymous.
+
+### Data preprocessing and missing value handling
+
+For the questions on training needs, respondents were explicitly permitted to skip technical topics that were not relevant to their work. Consequently, non-responses within the training needs questions were treated as meaningful omissions, i.e. 'not relevant'. To preserve the complete respondent pool and avoid the biases, missing values were therefore imputed with the minimum ordinal score of 1, corresponding to a *"Not needed"* response. All data analysis steps were implemented in R ([@rcoreteam_r_2026]; version 4.3.1) using the packages `dplyr` [@wickham_dplyr_2026] for data manipulation and `ggplot2` [@wickham_ggplot2_2016] for visualization.
+
+### Graph-based network and community detection
+
+To define clusters of participants without relying on pre-existing demographic labels, we modeled the survey respondents using network analysis (@fig-cluster-workflow). In this network, each individual respondent is represented as a single node. For every possible pair of respondents, we calculated the Pearson correlation coefficient based on their responses across all technical training sub-topics. This score reflects the similarity in their training needs. These similarity scores form the connections (edges) between nodes, where the weight of the connection represents the strength of the positive correlation between those two responses. To eliminate weak background noise and prevent the network from becoming too dense, we filtered based on a threshold of the Pearson correlation coefficient. We calculated the 80th percentile of all positive correlations (corresponding to a correlation coefficient of 0.32) across the dataset and pruned any connection falling below this threshold. Unsupervised clustering of the filtered respondent network was performed using the Louvain community detection algorithm [@blondel_fast_2008] using a resolution of 1. The network analysis and community detection was conducted using the `igraph` package in R [@csardi_igraph_2026]. 
+
+```{mermaid}
+%%| label: fig-cluster-workflow
+%%| fig-cap: "Graph-based clustering workflow for identifying learner archetypes. Respondents are modeled as nodes in a network, with edges representing pairwise correlation of training needs. Louvain community detection is applied to identify clusters of respondents with similar training needs."
+
+graph TD
+    %% Define Styles
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef process fill:#e1f5fe,stroke:#0288d1,stroke-width:1px,font-style:italic;
+    classDef cluster fill:#fff,stroke:#333,stroke-width:2px;
+
+    %% Nodes
+    A[SURVEY RESPONDENT POOL]
+    B(Pearson Pairwise Correlation)
+    C[PRUNED RESPONDENT NETWORK <br> r > 0.32]
+    D(Louvain Community Detection)
+    
+    E[Cluster 1 <br> AI & Data]
+    F[Cluster 2 <br> Infectious diseases genomics]
+    G[Cluster 3 <br> Functional genomics]
+    H[Cluster 4 <br> Biochemistry, imaging and AI]
+
+    %% Class Assignments
+    class B,D process;
+    class E,F,G,H cluster;
+
+    %% Connections
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    D --> G
+    D --> H
+
+```
+
+## Results
+
+### Demographics and overall responses
+
+In total 260 responses were gathered, of which 175 (67.3%) were from Switzerland (@fig-demographics A). Most respondents from Switzerland were spread across the cantons with major universities (@fig-demographics B). Most respondents were working in academia (n = 215, 82.7%; @fig-demographics C). The career stage was distributed across academic professions (@fig-demographics D), with a majority of PhD candidates (n = 77, 26.6%) and senior scientists/PIs (n = 67, 25.7%).
+
+```{r}
+#| label: fig-demographics
+#| fig-cap: "Respondent demographics. (A) Country of work. (B) Canton (if working in Switzerland). (C) Organisation type. (D) Career stage."
+
+p_a <- survey_results |>
+  rename(country = `In which country do you work?`) |>
+  filter(!is.na(country)) |>
+  count(country) |>
+  filter(n >= 3) |>
+  mutate(country = fct_reorder(country, n)) |>
+  ggplot(aes(x = n, y = country)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal()
+
+p_b <- survey_results |>
+  rename(canton = `In which canton do you work?`) |>
+  filter(!is.na(canton)) |>
+  count(canton) |>
+  mutate(canton = fct_reorder(canton, n)) |>
+  ggplot(aes(x = n, y = canton)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal()
+
+p_c <- survey_results |>
+  rename(
+    org = `How would you describe the organisation in which you currently work?`
+  ) |>
+  filter(!is.na(org)) |>
+  count(org) |>
+  mutate(org = fct_reorder(org, n)) |>
+  ggplot(aes(x = n, y = org)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal() +
+  scale_y_discrete(labels = label_wrap(25))
+
+p_d <- survey_results |>
+  rename(career_stage = `Which career stage are you currently in?`) |>
+  filter(!is.na(career_stage)) |>
+  count(career_stage) |>
+  mutate(career_stage = fct_reorder(career_stage, n)) |>
+  ggplot(aes(x = n, y = career_stage)) +
+  geom_col() +
+  geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Count", y = NULL) +
+  theme_minimal() +
+  scale_y_discrete(labels = label_wrap(25))
+
+(p_a + p_b) /
+  (p_c + p_d) +
+  plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A") &
+  theme(legend.position = "bottom")
+```
+
+For a wide range of pre-defined course topics, the respondents were asked to indicate their training needs on a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-preferences, which indicates that the majority of respondents expressed a need for training in AI-related topics, FAIR data and computational methods, as well as in integrating imaging with omics data. In contrast, topics related to e.g. transposable elements analysis and 16S sequencing data analysis were generally considered as less needed. 
+
+```{r}
+#| label: fig-likert-preferences
+#| fig-cap: "Overall responses of training needs, shown in percentages and ordered by need."
+#| fig-height: 12
+
+plot_likert(
+  survey_long,
+  all_topic_questions,
+  counts = FALSE,
+  labels = TRUE
+) +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical"
+  )
+```
+
+Barriers to participate in SIB courses were also assessed using a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-barriers, which indicates that the majority of respondents did not perceive any of the listed factors as a significant barrier to their participation in SIB courses. However, some respondents indicated that distance and course fees could be potential barriers.
+
+```{r}
+#| label: fig-likert-barriers
+#| fig-cap: "Overall responses of the question \"Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.\". The barriers are ordered by the proportion of respondents who indicated that they were not a barrier."
+#| fig-height: 6
+plot_likert(
+  survey_long,
+  "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+  counts = FALSE,
+  labels = TRUE
+) +
+  ggtitle(NULL) +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical"
+  )
+```
+
+When asked about their preferred learning formats, respondents expressed a preference for blended modes, multi-day intensive courses and interactive and problem-based learning approaches, such as Bring Your Own Data (BYOD) and Problem-Based Learning (PBL). Remarkably, AI-assisted formats were generally less favored. The overall distribution of responses is shown in @fig-likert-formats.
+
+```{r}
+#| label: fig-likert-formats
+#| fig-cap: "Overall responses of the question \"Specify which learning formats you prefer. Note: these are not mutually exclusive, i.e. some can be used in combination\". The formats are ordered by the proportion of respondents who indicated that they liked or strongly liked the format."
+#| fig-height: 6
+plot_likert(
+  survey_long,
+  "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+  counts = FALSE,
+  labels = TRUE
+) +
+  ggtitle(NULL) +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical"
+  )
+```
+
+### Graph-based clustering of course preference responses
+
+To group respondents based on their training needs, we constructed a network where nodes represent respondents and edges represent the similarity of their training preferences. Initially, we identified five clusters (@fig-course-cluster-network), of which one cluster (Cluster 5) consisted of a single respondent who indicated 'absolutely essential' for all course topics, which was considered as an outlier and therefore removed from the analysis.  
+
+```{r}
+#| label: cluster-course-preferences
+#| fig-width: 4
+
+course_scale <- meta_df |>
+  dplyr::filter(main_question %in% all_topic_questions) |>
+  dplyr::pull(scale) |>
+  purrr::pluck(1)
+
+course_matrix_tbl <- survey_long |>
+  dplyr::filter(
+    question_type == "likert",
+    main_question %in% all_topic_questions,
+    !is.na(sub_question),
+    !is.na(answer)
+  ) |>
+  dplyr::mutate(
+    feature = paste(main_question, sub_question, sep = " :: "),
+    score = as.numeric(match(answer, course_scale))
+  ) |>
+  dplyr::select(respondent_id, feature, score) |>
+  tidyr::pivot_wider(names_from = feature, values_from = score)
+
+course_matrix <- course_matrix_tbl |>
+  dplyr::select(-respondent_id) |>
+  as.matrix()
+
+# setting NAs to 1 (the lowest score, corresponding to "Not needed") allows us to keep respondents with some missing values in the correlation step, under the assumption that non-responses indicate a lack of interest in the topic.
+course_matrix[is.na(course_matrix)] <- 1
+
+# Pairwise respondent correlation network. NAs are handled pairwise.
+respondent_cor <- stats::cor(t(course_matrix), use = "pairwise.complete.obs")
+diag(respondent_cor) <- 0
+
+# Keep only stronger positive edges to avoid a fully connected graph.
+edge_threshold <- stats::quantile(
+  respondent_cor[upper.tri(respondent_cor)],
+  probs = 0.8,
+  na.rm = TRUE
+)
+
+# create graph from adjacency matrix
+adjacency <- respondent_cor
+adjacency[is.na(adjacency)] <- 0
+adjacency[adjacency < edge_threshold] <- 0
+
+g <- igraph::graph_from_adjacency_matrix(
+  adjacency,
+  mode = "undirected",
+  weighted = TRUE,
+  diag = FALSE
+)
+
+# add respondent_id as vertex attribute for later merging with survey data
+igraph::V(g)$respondent_id <- course_matrix_tbl$respondent_id
+
+# louvain community detection with edge weights and resolution parameter to control cluster granularity.
+set.seed(20260511)
+community <- igraph::cluster_louvain(
+  g,
+  weights = igraph::E(g)$weight,
+  resolution = 1
+)
+
+# create a tibble mapping respondent_id to cluster membership
+cluster_assignments <- tibble::tibble(
+  respondent_id = igraph::V(g)$respondent_id,
+  cluster = factor(paste("Cluster", igraph::membership(community)))
+)
+```
+
+```{r}
+#| label: fig-course-cluster-network
+#| fig-cap: "Respondent network from course-topic preference correlations. Edge widths indicate stronger positive correlation; colors indicate Louvain communities."
+#| fig-height: 5
+
+layout_fr <- igraph::layout_with_fr(g)
+
+cluster_levels <- cluster_assignments |>
+  dplyr::distinct(cluster) |>
+  dplyr::arrange(cluster) |>
+  dplyr::pull(cluster)
+
+cluster_palette <- scales::hue_pal()(length(cluster_levels))
+names(cluster_palette) <- cluster_levels
+
+vertex_clusters <- paste("Cluster", igraph::membership(community))
+vertex_colors <- unname(cluster_palette[vertex_clusters])
+
+edge_weights <- igraph::E(g)$weight
+edge_width <- scales::rescale(edge_weights, to = c(0.4, 2.5))
+
+plot(
+  g,
+  layout = layout_fr,
+  vertex.size = 4,
+  vertex.label = NA,
+  vertex.color = vertex_colors,
+  edge.width = edge_width,
+  edge.color = grDevices::adjustcolor("grey35", alpha.f = 0.35),
+  margin = 0.05
+)
+
+legend(
+  "topleft",
+  legend = names(cluster_palette),
+  col = unname(cluster_palette),
+  pch = 16,
+  pt.cex = 1.2,
+  bty = "n",
+  cex = 0.85
+)
+```
+
+The structural topology of the resulting clusters displays varying levels of internal coherence. To evaluate the similarity of responses within the clusters, we calculated the edge density (the proportion of actual connections out of all possible links)for each cluster (@tbl-cluster-interconnectedness), showing  that Cluster 1 exhibits the highest edge density. Therefore, Cluster 1 has the most similar training needs.
+
+```{r}
+#| label: tbl-cluster-interconnectedness
+#| tbl-cap: "Within-cluster interconnectedness scores (internal edge count and density)."
+
+membership_vec <- igraph::membership(community)
+
+cluster_interconnectedness <- sort(unique(membership_vec)) |>
+  purrr::map_dfr(function(cl_id) {
+    vids <- which(membership_vec == cl_id)
+    subg <- igraph::induced_subgraph(g, vids = vids)
+
+    # number of nodes and edges within the cluster
+    n_nodes <- igraph::vcount(subg)
+    # number of edges with both endpoints in the cluster
+    internal_edges <- igraph::ecount(subg)
+    # number of possible edges within the cluster (undirected, no self-loops)
+    possible_edges <- n_nodes * (n_nodes - 1) / 2
+    # total weight of edges within the cluster
+    total_internal_weight <- if (internal_edges > 0) {
+      sum(igraph::E(subg)$weight)
+    } else {
+      0
+    }
+
+    tibble::tibble(
+      cluster = paste("Cluster", cl_id),
+      nodes = n_nodes,
+      `internal edges` = internal_edges,
+      `possible edges` = possible_edges,
+      # proportion of possible edges that actually exist within the cluster
+      `edge density` = ifelse(
+        possible_edges > 0,
+        internal_edges / possible_edges,
+        NA_real_
+      ) #,
+      # average number of internal connections per node within the cluster
+      #   `mean internal degree` = mean(igraph::degree(subg)),
+      #   `total internal weight` = total_internal_weight,
+      #   `mean internal weight` = ifelse(internal_edges > 0, total_internal_weight / internal_edges, NA_real_)
+    )
+  })
+
+cluster_interconnectedness |>
+  dplyr::filter(cluster != "Cluster 5") |>
+  dplyr::arrange(cluster) |>
+  dplyr::mutate(
+    `edge density` = round(`edge density`, 3) #,
+    # `mean internal weight` = round(`mean internal weight`, 3)
+  ) |>
+  knitr::kable()
+```
+
+### Learner profiles
+
+The four resulting clusters were characterized by distinct training needs, shown by their top 10 of most liked topics (@fig-topics-by-cluster). This clearly shows that responses within each cluster have distinct preferences that are not visible when analyzing the entire respondent pool (@fig-likert-preferences). Cluster 1 (@fig-topics-by-cluster A; referred to as 'AI and data') is characterized by an interest in AI and data topics, including application LLMs and reproducible and FAIR Data. Cluster 2 (@fig-topics-by-cluster B; referred to as 'Infectious disease genomics') is characterized by infectious disease topics and possibly ecology, with an interest in phylogenetics, pathogen genomics and epidemiology. Cluster 3 (@fig-topics-by-cluster C; referred to as 'Functional genomics') is characterized by an interest in functional genomics topics, with an interest in transcriptomics and epigenetics. Cluster 4 (@fig-topics-by-cluster D; referred to as 'Biochemistry, imaging & AI') is characterized by training needs on AI, biochemistry and imaging, with an interest in proteomics, mass spectrometry and imaging and omics data integration. All clusters have topics related to AI in their top 10, indicating that AI is a cross-cutting theme across all clusters.
+
+```{r}
+#| label: cluster-filtering
+
+# get cluster sizes and filter out clusters with ≤ 5 respondents to ensure meaningful profiles in the next step
+cluster_sizes_full <- cluster_assignments |>
+  dplyr::count(cluster, name = "n_respondents") |>
+  dplyr::arrange(cluster)
+
+valid_clusters <- cluster_sizes_full |>
+  dplyr::filter(n_respondents > 5) |>
+  dplyr::pull(cluster)
+
+all_clusters <- cluster_sizes_full |>
+  dplyr::pull(cluster)
+
+cluster_assignments_filtered <- cluster_assignments |>
+  dplyr::filter(cluster %in% valid_clusters)
+
+cluster_lookup <- cluster_assignments_filtered |>
+  dplyr::mutate(cluster = as.character(cluster))
+
+survey_results <- survey_results |>
+  dplyr::mutate(respondent_id = dplyr::row_number()) |>
+  dplyr::left_join(cluster_lookup, by = "respondent_id") |>
+  dplyr::select(-respondent_id)
+
+survey_long_cluster <- survey_long |>
+  dplyr::inner_join(cluster_lookup, by = "respondent_id")
+```
+
+```{r}
+#| label: fig-topics-by-cluster
+#| fig-cap: "The top 10 most liked topics are shown for each cluster, indicating that each cluster has distinct training needs. Only the answers \"Very needed\" (light green) and \"Absolutely essential\" (dark green) are shown. The numbers in the bars represent the count of respondents within the respective cluster selecting the answer. (A) Cluster 1: AI and data. (B) Cluster 2: Infectious disease genomics. (C) Cluster 3: Functional genomics. (D) Cluster 4: Biochemistry, imaging & AI."
+#| fig-height: 20
+
+plot_list <- list()
+for (cl in valid_clusters) {
+  # cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+
+  p <- plot_likert(
+    survey_long_cluster |> dplyr::filter(cluster == cl),
+    all_topic_questions,
+    counts = TRUE,
+    labels = TRUE,
+    positive_only = TRUE,
+    top_n_sub_questions = 10
+  ) 
+
+  plot_list[[cl]] <- p
+}
+
+wrap_plots(plot_list, ncol = 1) +
+  plot_annotation(tag_levels = "A") &
+  theme(legend.position = "none")
+```
+
+These clusters can be further characerized based on demographic characteristics (@fig-cluster-pie-career; Supplementary Figure X), structural barriers to participation (Supplementary Figure X), and preferred learning formats (Supplementary Figure X). Such analyses can help training providers to design targeted curricula that address the specific needs of each cluster. For example, Cluster 1 (AI & data) has a higher proportion of early-career scientists (PhD candidates and postdoctoral researchers; @fig-cluster-pie-career) and a higher proportion of respondents from academia (Supplmentary Figure X), while Cluster 4 (Biochemistry, imaging & AI) has a higher proportion of senior scientists and respondents from industry. These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each cluster.
+
+```{r}
+#| label: cluster-pie-helpers
+
+cluster_title_map <- c(
+  "Cluster 1" = "Cluster 1: AI and Data",
+  "Cluster 2" = "Cluster 2: Infectious Disease Genomics",
+  "Cluster 3" = "Cluster 3: Functional Genomics",
+  "Cluster 4" = "Cluster 4: Biochemistry, Imaging & AI"
+)
+
+cluster_display_labels <- vapply(
+  valid_clusters,
+  function(cl) {
+    if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+  },
+  character(1)
+)
+
+career_choices <- get_question_choices("Which career stage are you currently in?")
+org_choices <- get_question_choices("How would you describe the organisation in which you currently work?")
+country_choices <- get_question_choices("In which country do you work?")
+canton_choices <- get_question_choices("In which canton do you work?")
+sib_course_choices <- get_question_choices("When did you last attend a SIB course?")
+
+cluster_demo <- survey_results |>
+  dplyr::filter(cluster %in% valid_clusters)
+
+cluster_demo <- cluster_demo |>
+  dplyr::mutate(
+    swiss_other = dplyr::case_when(
+      `In which country do you work?` %in% c("Switzerland", "Suisse") ~ "Switzerland",
+      `In which country do you work?` %in% country_choices ~ "Other",
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+```{r}
+#| label: fig-cluster-pie-career
+#| fig-cap: "Career stage composition per cluster."
+#| fig-height: 6
+
+career_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "Which career stage are you currently in?",
+  allowed_choices = career_choices,
+  top_n = 5
+)
+
+plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
+```
+
+## Discussion
+
+### The Pervasive Influence of AI on Bioinformatics Training
+
+The results of this survey reveal that AI is no longer a peripheral interest but a core driver of modern bioinformatics training needs, splitting the community into distinct archetypes based on how they intend to use these tools. In **Cluster 1 (AI and Data Engineering)**, we see an emergent class of computational researchers who view AI through an operational lens. Their explicit focus on LLM architectures, RAG, and agentic workflows suggests that bioinformaticians are increasingly moving from passive consumers of third-party software to developers who build AI-driven analytics infrastructure.
+
+Meanwhile, **Cluster 4 (Biochemistry, Imaging & AI)** highlights the growing reliance on AI for multi-modal data integration. For these researchers, AI serves as a bridge to link disparate complex datasets, such as mass spectrometry outputs and spatial clinical imaging. This aligns with broader shifts in translational medicine, where deep learning frameworks are becoming mandatory for processing high-dimensional phenotypic and diagnostic data (Topol, 2019).
+
+### The AI Format Paradox
+
+A particularly striking finding is the polarization regarding *how* AI should be used in training delivery. Despite being the most technically invested in AI algorithms, **Cluster 1** and **Cluster 3** expressed the strongest dislike for AI-assisted learning formats. This creates an educational paradox: the researchers who understand AI best are the least interested in being taught by it.
+
+This skepticism is supported by contemporary literature on generative AI in education. While LLMs excel at generating localized code snippets, they frequently introduce hallucinations, bypass foundational problem-solving steps, and lack the nuanced pedagogical scoping provided by experienced human instructors (Denny et al., 2023; Prather et al., 2023). Early-career researchers (PhDs and Postdocs), who comprise the bulk of Cluster 1, heavily favor interactive, peer-driven formats like Bring Your Own Data (BYOD) and Problem-Based Learning (PBL). This indicates that when navigating complex computational workflows, human mentorship, real-time troubleshooting, and peer collaboration remain irreplaceable.
+
+Conversely, **Cluster 4**—which includes a higher proportion of established Senior Scientists and industry professionals—showed the least resistance to AI-assisted and self-paced e-learning formats. For senior personnel facing severe scheduling constraints, the flexibility of asynchronous, AI-guided platforms may outweigh the benefits of multi-day, synchronous interactive blocks.
+
+### Practical Recommendations for Portfolio Optimization
+
+Rather than deploying generic introductory modules across rigid demographic strata, national training providers should leverage these data-driven cohorts to build modular, track-based curricula (Morgan et al., 2017):
+
+* **For the AI & Data Track (Cluster 1):** Training should bypass basic syntax and instead offer advanced hackathons or project-based workshops focused on automated infrastructure (CI/CD), secure cloud computing, and LLM orchestration. Because distance is their primary barrier, localized multi-hub hybrid events would maximize reach.
+
+
+* **For the Healthcare & Pathogen Track (Cluster 2):** Due to the high proportion of clinical and non-academic participants, training must be highly localized or virtual, and scheduled compactly to accommodate professional constraints. Furthermore, because course fees represent a distinct structural barrier for this group, providers should explore target subsidies or institutional memberships to lower the financial entry barrier.
+
+
+## Conclusion
+
+This study demonstrates the utility of network modeling and community detection for transforming raw training needs survey data into clear, actionable educational tracks. By grouping respondents based on their shared technical requirements rather than classical demographic labels, we isolated four stable, cohesive learner archetypes. The heavy influence of AI across these clusters—both as a highly requested technical topic and as a polarizing pedagogical format—underscores the need for agile curriculum design. Tailoring training portfolios to these specific learner profiles allows computational biology training providers to effectively address participation barriers, adopt optimal teaching formats, and ensure maximum educational impact in a rapidly evolving scientific landscape.

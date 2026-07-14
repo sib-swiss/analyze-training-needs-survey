@@ -289,7 +289,8 @@ plot_likert <- function(
 	counts = FALSE,
 	labels = FALSE,
 	base_size = 14,
-	positive_only = FALSE
+	positive_only = FALSE,
+	top_n_sub_questions = NULL
 ) {
 	df <- survey_long |>
 		dplyr::filter(
@@ -410,11 +411,21 @@ plot_likert <- function(
 			dplyr::summarise(mean_score = sum(score), .groups = "drop")
 	}
 
+	if (!is.null(top_n_sub_questions)) {
+		if (!is.numeric(top_n_sub_questions) || length(top_n_sub_questions) != 1 || top_n_sub_questions < 1) {
+			stop("top_n_sub_questions must be a single positive number.")
+		}
+		top_n_sub_questions <- as.integer(top_n_sub_questions)
+		mean_score <- mean_score |>
+			dplyr::slice_max(order_by = mean_score, n = top_n_sub_questions, with_ties = FALSE)
+	}
+
 	sub_levels <- mean_score |>
 		dplyr::arrange(mean_score) |>
 		dplyr::pull(sub_question)
 
 	segments <- segments |>
+		dplyr::filter(sub_question %in% sub_levels) |>
 		dplyr::mutate(sub_question = factor(sub_question, levels = sub_levels))
 
 	x_scale <- if (positive_only) {
