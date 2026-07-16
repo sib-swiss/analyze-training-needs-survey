@@ -191,7 +191,7 @@ build_question_dictionary <- function(df, meta_df) {
 	}
 
 	# Join type and scale from metadata; columns not in the JSON get NA.
-	question_dictionary |>
+	question_dictionary_out <- question_dictionary |>
 		dplyr::left_join(
 			dplyr::select(
 				meta_df,
@@ -200,7 +200,32 @@ build_question_dictionary <- function(df, meta_df) {
 				scale
 			),
 			by = "main_question"
+		) |>
+		dplyr::mutate(
+			sub_question = dplyr::if_else(
+				main_question == "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination" & !is.na(sub_question),
+				stringr::str_squish(stringr::str_remove(sub_question, "\\s*\\(.*$")),
+				sub_question
+			)
 		)
+
+	abbrev_path <- "data/course_abbrevations.csv"
+	if (file.exists(abbrev_path)) {
+		abbrev_tbl <- utils::read.csv(abbrev_path, stringsAsFactors = FALSE) |>
+			tibble::as_tibble() |>
+			dplyr::mutate(
+				original = normalize_str(original),
+				abbreviation = normalize_str(abbreviation)
+			)
+
+		question_dictionary_out <- question_dictionary_out |>
+			dplyr::mutate(sub_question = normalize_str(sub_question)) |>
+			dplyr::left_join(abbrev_tbl, by = c("sub_question" = "original")) |>
+			dplyr::mutate(sub_question = dplyr::coalesce(abbreviation, sub_question)) |>
+			dplyr::select(-abbreviation)
+	}
+
+	question_dictionary_out
 }
 
 # 100% stacked bar chart of SIB course attendance by a grouping variable.
