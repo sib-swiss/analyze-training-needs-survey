@@ -1,6 +1,7 @@
 ---
 title: "A network-based approach to characterize heterogeneous bioinformatics training needs: Analysis of the SIB training survey"
 bibliography: references.bib
+author: Valeria Di Cola, Monique Zahn, Diana Marek, Gregoire Rossier, Patricia M. Palagi, Geert van Geest​
 format:
   html:
     code-fold: true
@@ -10,12 +11,21 @@ format:
   docx:
     number-sections: true
     reference-doc: custom-reference-doc.docx
+    fig-format: png
+    fig-dpi: 100
+    fig-width: 4
 execute:
   echo: false
   warning: false
   message: false
 abstract: | 
-    Bioinformatics training providers face significant challenges in designing curricula for highly heterogeneous researcher communities spanning multiple career stages, scientific domains, and organizational types. This complexity is further amplified by the rapid advances in computational life scienes, like integration of Artificial Intelligence (AI), which shifts the baseline competencies researchers require. This study presents a systematic methodology for identifying training requirements using survey data from the SIB Swiss Institute of Bioinformatics. Moving beyond simple descriptive statistics, we implement a graph-based data processing workflow. Respondents are modeled as nodes in a network, with connections indicating pairwise correlation across 5-point Likert-type questions covering five primary computational biology domains. By applying Louvain community detection to this network, we uncover four distinct respondent archetypes characterized by coherent, specific training demands: AI and Data, Infectious Disease Genomics, Functional Genomics, and Biochemistry, Imaging & AI. We profile these clusters against preferred learning modalities (e.g., Problem-Based Learning, asynchronous e-learning) and structural participation barriers (e.g., physical distance, institutional funding constraints). Our results demonstrate that data-driven learner profiling provides a more actionable foundation for modular curriculum design than traditional demographic subdivisions, enabling training organizations to optimize resource allocation and enhance pedagogical efficacy in an AI-disrupted educational landscape.
+  **Background:** Bioinformatics training audiences are heterogeneous, and demographic groupings alone often mask meaningful differences in training priorities. To address this, we analyzed the SIB training needs survey using a network-based strategy that identifies respondent subgroups from shared topic preferences, alongside standard analyses of barriers and learning formats.
+
+  **Methods:** We analyzed 260 responses collected over 6 weeks (March-April 2026), including Likert-type ratings for training topics, participation barriers, and preferred course formats, plus demographic and course-attendance variables. Respondents were represented as nodes in a correlation network built from course-topic ratings and Louvain community detection was applied to identify clusters. Cluster profiles were then characterized using topic priorities, barriers, format preferences, and demographics.
+
+  **Results:** Most responses came from Switzerland (67.3%) and academia (82.7%). Across all respondents, strongest demand centered on AI/LLM-related skills, FAIR and reproducible data practices, and computational methods. Distance and course fees emerged as the most relevant barriers, while blended, interactive, and multi-day formats were generally preferred; AI-assisted learning formats were less favored. Network analysis identified four interpretable learner profiles: AI and data, infectious disease genomics, functional genomics, and Biochemistry, imaging & AI.
+
+  **Conclusions:** Network-based clustering revealed actionable training-need heterogeneity that is not captured by demographic stratification alone. Integrating these learner profiles into curriculum planning can improve course targeting, format selection, and barrier mitigation, supporting more effective and responsive bioinformatics training programs.
 ---
 
 ```{r}
@@ -132,11 +142,13 @@ sib_course_values <- c(
 
 The rapid and continuous evolution of high-throughput experimental technologies, large-scale data infrastructures, and data management has made bioinformatics training a necessity for life science researchers [@via_ten_2011]. National and international training providers, such as the SIB Swiss Institute of Bioinformatics, aim to provide high-quality, impactful courses to a heterogeneous audience. This audience ranges from academic PhD candidates requiring upskilling in specific analytical competences to corporate senior scientists or clinical personnel seeking broad overviews of emerging computational resources.
 
-In recent years, the fast growth of Artificial Intelligence (AI) and Large Language Models (LLMs) has transformed both the bioinformatics landscape and the nature of computational training itself [@wen_bin_goh_rethinking_2026; @ruan_large_2026]. AI is no longer just an advanced topic for specialized computer scientists; tools like GitHub Copilot and ChatGPT have shifted how researchers write code, automate workflows and retrieve data [@jiang_survey_2026]. This paradigm shift creates a dual challenge for training. First, curricula must adapt to include training on incorporating AI in their workflows but also on responsible and ethical AI usage. Second, pedagogical delivery must take into account that LLMs have become the most important source of information for many learners, which may either alleviate or worsen existing gaps in student engagement and prerequisite knowledge.
+Training needs can be evaluated based on three dimensions: course topics, format, and logistics. The course topics address educational needs, while format involves alignment to preferences regarding learning formats (e.g., intensive block courses, problem-based learning, self-paced e-learning). Logistics involves mitigating systemic barriers to attendance, including geographical distance and financial restrictions. Previous training needs surveys have analyzed these dimensions independently or slice responses using classical demographic categories like career stage or geographic region [@attwood_global_2019; @drew_revisiting_2023]. While informative, such an approach assumes that individuals within a demographic sub-group are homogeneous. However, a post-doctoral researcher in structural biology may share more training needs with an industry mass-spectrometry specialist than with a post-doctoral researcher in plant ecology. 
 
-The design of a bioinformatics training curriculum can be based on three dimensions: course topics, format, and logistics. The course topics address educational needs, while format involves alignment to preferences regarding learning formats (e.g., intensive block courses, problem-based learning, self-paced e-learning). Logistics involves mitigating systemic barriers to attendance, including geographical distance and financial restrictions. Previous training needs surveys have analyzed these dimensions independently or slice responses using classical demographic categories like career stage or geographic region [@attwood_global_2019; @drew_revisiting_2023]. While informative, such an approach assumes that individuals within a demographic sub-group are homogeneous. However, a post-doctoral researcher in structural biology may share more training needs with an industry mass-spectrometry specialist than with a post-doctoral researcher in plant ecology.
+Clustering of survey responses can be highly valuable for understanding respondent heterogeneity. This approach was already introduced in the eighties for market segmentation [@punj_cluster_1983], and is still frequently used. For example, for understanding heterogeneity in citizenship norms [@hooghe_comparative_2016], health literacy [@cheng_measuring_2024; @hyde_electronic_2019], bullying [@chung_are_2020], or company training needs [@wenger_analysing_2024]. For our case of bioinformatics training needs, identifying clusters of survey respondents with similar needs can provide a better understanding of response heterogeneity. Applying such a data-driven approach can help training providers design curricula that are tailored to the specific needs of these sub-groups, rather than relying on broad demographic categories.
 
-To address this limitation, this paper describes a robust, reproducible, and data-driven framework for mapping training needs along the three dimensions using graph-based clustering. By converting individual responses into a correlation graph, we define clusters of learners who share common training needs, regardless of their institutional or regional backgrounds. We detail the underlying data preprocessing pipeline, a conceptual overview of graph construction, and subsequent characterization of the isolated learner profiles with a strong emphasis on how AI needs shape these profiles.
+In recent years, the fast growth of Artificial Intelligence (AI) and Large Language Models (LLMs) has transformed both the bioinformatics landscape and the nature of computational training itself [@wen_bin_goh_rethinking_2026; @ruan_large_2026]. AI is no longer just an advanced topic for specialized computer scientists; tools like GitHub Copilot and ChatGPT have shifted how researchers write code, automate workflows and retrieve data [@jiang_survey_2026]. LLM and generative AI are heavily used by scientists [@daepp_ai_2026], and they are frequently used for education [@bewersdorff_taking_2025], both in the classroom and for self-directed learning [@esiyok_acceptance_2025; @wu_unlocking_2024]. To understand the impact of AI on training needs, it is therefore important to identify what kind of AI-related topics are required by scientists. This can help training providers to design courses that address the specific needs, and to ensure that AI-related topics are integrated into the curriculum in a way that is relevant and useful for all learners.  
+
+This paper describes a data-driven framework for mapping training needs along the three dimensions of course topics, format, and logistics using graph-based clustering. By converting individual responses into a correlation graph, we define profiles of learners who share common training needs, regardless of their institutional or regional backgrounds. We detail the underlying data preprocessing pipeline, a conceptual overview of graph construction, and subsequent characterization of the isolated learner profiles with a strong emphasis on how AI needs shape these profiles.
 
 ## Methods 
 
@@ -215,7 +227,7 @@ p_a <- survey_results |>
   ggplot(aes(x = n, y = country)) +
   geom_col() +
   geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
-  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.2))) +
   labs(x = "Count", y = NULL) +
   theme_minimal()
 
@@ -241,7 +253,7 @@ p_c <- survey_results |>
   ggplot(aes(x = n, y = org)) +
   geom_col() +
   geom_text(aes(label = n), hjust = -0.2, size = 3.5) +
-  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.2))) +
   labs(x = "Count", y = NULL) +
   theme_minimal() +
   scale_y_discrete(labels = label_wrap(25))
@@ -270,7 +282,7 @@ For a wide range of pre-defined course topics, the respondents were asked to ind
 
 ```{r}
 #| label: fig-likert-preferences
-#| fig-cap: "Overall responses of training needs, shown in percentages and ordered by need."
+#| fig-cap: "Overall responses of training needs, shown in percentages and ordered by need. The topics are ordered by the proportion of respondents who indicated that they needed the topic (i.e. answered \"Very needed\" or \"Absolutely essential\"). Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in the Supplementary Materials."
 #| fig-height: 12
 
 plot_likert(
@@ -531,7 +543,7 @@ survey_long_cluster <- survey_long |>
 
 ```{r}
 #| label: fig-topics-by-cluster
-#| fig-cap: "The top 10 most liked topics are shown for each cluster, indicating that each cluster has distinct training needs. Only the answers \"Very needed\" (light green) and \"Absolutely essential\" (dark green) are shown. The numbers in the bars represent the count of respondents within the respective cluster selecting the answer. (A) Cluster 1: AI and data. (B) Cluster 2: Infectious disease genomics. (C) Cluster 3: Functional genomics. (D) Cluster 4: Biochemistry, imaging & AI."
+#| fig-cap: "The top 10 most liked topics are shown for each cluster, indicating that each cluster has distinct training needs. Only the answers \"Very needed\" (light green) and \"Absolutely essential\" (dark green) are shown. The numbers in the bars represent the count of respondents within the respective cluster selecting the answer. (A) Cluster 1: AI and data. (B) Cluster 2: Infectious disease genomics. (C) Cluster 3: Functional genomics. (D) Cluster 4: Biochemistry, imaging & AI. Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in the Supplementary Materials."
 #| fig-height: 20
 
 plot_list <- list()
@@ -611,30 +623,41 @@ plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
 
 ## Discussion
 
-### The Pervasive Influence of AI on Bioinformatics Training
+### Overall survey outcomes
 
-The results of this survey reveal that AI is no longer a peripheral interest but a core driver of modern bioinformatics training needs, splitting the community into distinct archetypes based on how they intend to use these tools. In **Cluster 1 (AI and Data Engineering)**, we see an emergent class of computational researchers who view AI through an operational lens. Their explicit focus on LLM architectures, RAG, and agentic workflows suggests that bioinformaticians are increasingly moving from passive consumers of third-party software to developers who build AI-driven analytics infrastructure.
+Although the survey was open to anyone, the majority of respondents were from Switzerland and academia. The likely cause was that the survey was primarily advertised through the SIB training mailing list and other academic channels and networks within Switzerland. However, academic researchers working in Switzerland are the main target group of SIB training, and the survey results provide valuable insights into the training needs and preferences of bioinformatics researchers. Here, we discuss the overall survey outcomes along the three dimensions of training needs, participation barriers and learning formats.
 
-Meanwhile, **Cluster 4 (Biochemistry, Imaging & AI)** highlights the growing reliance on AI for multi-modal data integration. For these researchers, AI serves as a bridge to link disparate complex datasets, such as mass spectrometry outputs and spatial clinical imaging. This aligns with broader shifts in translational medicine, where deep learning frameworks are becoming mandatory for processing high-dimensional phenotypic and diagnostic data (Topol, 2019).
+#### Training needs
 
-### The AI Format Paradox
+From the complete pool of survey results, it becomes clear that there is a demand for training on using (generative) AI and LLMs. The course that was indicated as most needed was "AI-assisted coding and analysis", and "Using large language models (LLM) for biomedical knowledge extraction". This shows that the respondents are aware of the potential of AI and LLMs in bioinformatics and experience a gap in their current skill set on how to use these tools effectively. 
 
-A particularly striking finding is the polarization regarding *how* AI should be used in training delivery. Despite being the most technically invested in AI algorithms, **Cluster 1** and **Cluster 3** expressed the strongest dislike for AI-assisted learning formats. This creates an educational paradox: the researchers who understand AI best are the least interested in being taught by it.
+The survey also revealed that there is a demand for training on FAIR data management and reproducible research, with "Making bioinformatics workflows findable and citable" and "Sharing and reusing life science data" as 3rd and 4th most needed respectively. This shows awareness of a need for learning about open and reproducible research practices amongst most repsondents, which corresponds with earlier findings regarding perceptions on FAIR data practices [@kersloot_perceptions_2022], and its challenges [@martinez-garcia_fair_2023]. 
 
-This skepticism is supported by contemporary literature on generative AI in education. While LLMs excel at generating localized code snippets, they frequently introduce hallucinations, bypass foundational problem-solving steps, and lack the nuanced pedagogical scoping provided by experienced human instructors (Denny et al., 2023; Prather et al., 2023). Early-career researchers (PhDs and Postdocs), who comprise the bulk of Cluster 1, heavily favor interactive, peer-driven formats like Bring Your Own Data (BYOD) and Problem-Based Learning (PBL). This indicates that when navigating complex computational workflows, human mentorship, real-time troubleshooting, and peer collaboration remain irreplaceable.
+While applying such outcomes to actual training, it is important to note that there can be a gap between intention - indicating a desire or need for training - and action - actually participating in a training course on the topic. Despite the questions on training needs were phrased in a way that the answer should relate to the respondents' own training needs (".. specify your training needs .."), some answers might represent what the respondents think their communities or colleagues need. This is also reflected in the relatively high proportion of senior scientists and PIs in the survey (25.7%), who might be more likely to answer on behalf of their group or lab rather than their own personal training needs. Therefore, the translation of these answers from intention to action, i.e. actually participating in a training course on the topic, might not be straightforward. 
 
-Conversely, **Cluster 4**—which includes a higher proportion of established Senior Scientists and industry professionals—showed the least resistance to AI-assisted and self-paced e-learning formats. For senior personnel facing severe scheduling constraints, the flexibility of asynchronous, AI-guided platforms may outweigh the benefits of multi-day, synchronous interactive blocks.
+#### Participation barriers
 
-### Practical Recommendations for Portfolio Optimization
+For most barriers, we saw that the majority of respondents did not perceive them as a barrier or as small barrier to their participation in SIB courses. Distance and course fees were large or critical barriers for a substantial proportion of respondents. 
 
-Rather than deploying generic introductory modules across rigid demographic strata, national training providers should leverage these data-driven cohorts to build modular, track-based curricula (Morgan et al., 2017):
+Currently, approximately 50% of the SIB courses is provided online, and most other courses in-person in Lausanne, Geneva, Basel, Bern and Zurich. For online courses, the distance barrier should not be significant, also taking into account that barriers related to time-zone differences are minimal. Especially courses on emerging topics are held in-person, and usually in the city where the trainer is located. To releave the distance barrier for Swiss participants, there could be more incentive to organise the same course in different cities and possibly provide more online options. 
 
-* **For the AI & Data Track (Cluster 1):** Training should bypass basic syntax and instead offer advanced hackathons or project-based workshops focused on automated infrastructure (CI/CD), secure cloud computing, and LLM orchestration. Because distance is their primary barrier, localized multi-hub hybrid events would maximize reach.
+At the time of writing, participating in a regular SIB course costs CHF 100 (= $ 124) per day, which can be a substantial amount for some researchers, especially if they cannot receive funding from their organisation. Compared to other live courses with a similar target group in Europe (e.g. EMBL-EBI courses, VIB training), this is a moderate fee, and only covers a part of the actual costs. Rearranging the cost model could lower this barrier, but would also mean that either different choices should be made regarding the quality or quantity of courses, or that additional funding is required, e.g. through institutional memberships.
 
+#### Learning formats
 
-* **For the Healthcare & Pathogen Track (Cluster 2):** Due to the high proportion of clinical and non-academic participants, training must be highly localized or virtual, and scheduled compactly to accommodate professional constraints. Furthermore, because course fees represent a distinct structural barrier for this group, providers should explore target subsidies or institutional memberships to lower the financial entry barrier.
+Respondents particularly liked short interactive live course formats, and combinations of both live and self-paced learning (blended). This shows the need of the human aspect in courses, such as the interaction between trainers and learners, and between learners themselves. 
 
+There was a tendency towards dislike of AI-assisted learning formats, which is interesting given the high demand for training on AI and LLMs. This indicates that while respondents are interested in learning about AI, they prefer to learn in a more traditional format, with human interaction and guidance. How respondents interpreted AI-assisted learning formats is not clear, and could be interpreted in different ways. For example, it could be interpreted as a course where the trainer uses AI to assist in teaching, or as a course where the learners use AI to assist in learning. Implementation of AI-assisted learning formats could be done in different ways, and it is important to understand how learners would appreciate this format, and what their expectations are. Therefore, using AI in courses for the sake of just using AI is not recommended, and it is important to use it only for specific use-cases where it adds clear value.
+
+### Learner profiles
+
+The problems that can be solved with bioinformatics are very diverse, and professionals solving these problems are
+ highly heterogeneous. Therefore, analyzing the survey as a homogeneous group, or slicing the group by demographic indicators only partly captures the diversity of training needs. This issue is not specific to bioinformatics training, creating clusters of respondents is an overall valuable approach for understanding survey data, for example in citizenship norms [@hooghe_comparative_2016], health literacy [@cheng_measuring_2024; @hyde_electronic_2019], bullying [@chung_are_2020] or company training [@wenger_analysing_2024]. 
+ 
+ By using graph-based clustering of the answers on training topics, we got a much more granular view, resulting in insights that would remain hidden otherwise. For example, the topic 'AI-assisted coding and analysis' was indicated as most needed by the complete pool of respondents, but when looking at the clusters, it was only in the most needed topic in Cluster 1 (AI & Data; 1st most needed), and not even in the top 10 for cluster 3 (Functional genomics). This shows that organising a course on this topic would serve the primary needs of Cluster 1, but only partly of respondents in the other clusters. This works the other way around as well. For example, the topic "Phylogenetics data analysis" was the 15th most needed topic in the complete pool of respondents, indicating a moderately to low priority to organize a course on the topic. However, it was the first most needed topic in Cluster 2 (Infectious disease genomics). This shows that organising a course on this topic would serve the primary needs of a substantial group of respondents, and this would not be visible when looking at the complete pool of respondents.
+
+The clusters also enable a more targeted approach to address barriers to participation, learning formats and demographics. For example, Cluster 1 (AI & Data) has a higher proportion of early-career scientists  and a higher proportion of respondents from Swiss universities, while Cluster 4 (Biochemistry, imaging & AI) has a higher proportion of senior scientists and respondents from industry. These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each cluster.
 
 ## Conclusion
 
-This study demonstrates the utility of network modeling and community detection for transforming raw training needs survey data into clear, actionable educational tracks. By grouping respondents based on their shared technical requirements rather than classical demographic labels, we isolated four stable, cohesive learner archetypes. The heavy influence of AI across these clusters—both as a highly requested technical topic and as a polarizing pedagogical format—underscores the need for agile curriculum design. Tailoring training portfolios to these specific learner profiles allows computational biology training providers to effectively address participation barriers, adopt optimal teaching formats, and ensure maximum educational impact in a rapidly evolving scientific landscape.
+This study demonstrates the utility of network modeling and community detection for transforming raw training needs survey data into clear, actionable curriculum design. By grouping respondents based on their shared technical requirements rather than classical demographic labels, we isolated four stable, cohesive learner archetypes. The heavy influence of AI across these clusters—both as a highly requested technical topic and as an overall disliked pedagogical format—underscores the need for agile curriculum design. Tailoring training curricula to these specific learner profiles allows computational biology training providers to effectively address participation barriers, adopt optimal teaching formats, and ensure maximum educational impact in a rapidly evolving scientific landscape.
