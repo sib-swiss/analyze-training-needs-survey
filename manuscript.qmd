@@ -499,13 +499,28 @@ cluster_interconnectedness <- sort(unique(membership_vec)) |>
     )
   })
 
+cluster_title_df <- data.frame(
+  cluster = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"),
+  profile = c(
+    "AI and Data",
+    "Infectious Disease Genomics",
+    "Functional Genomics",
+    "Biochemistry, Imaging & AI"
+  )
+)
+cluster_title_map <- setNames(cluster_title_df$profile, cluster_title_df$cluster)
+
+
 cluster_interconnectedness |>
   dplyr::filter(cluster != "Cluster 5") |>
+  dplyr::left_join(cluster_title_df, by = "cluster") |>
   dplyr::arrange(cluster) |>
   dplyr::mutate(
     `edge density` = round(`edge density`, 3) #,
     # `mean internal weight` = round(`mean internal weight`, 3)
   ) |>
+    # rearrange columns
+  dplyr::select(cluster, profile, respondents, `internal edges`, `possible edges`, `edge density`) |>
   knitr::kable()
 ```
 
@@ -574,20 +589,10 @@ These learner profiles can be further characterized based on demographic charact
 ```{r}
 #| label: cluster-pie-helpers
 
-cluster_title_map <- c(
-  "Cluster 1" = "Cluster 1: AI and Data",
-  "Cluster 2" = "Cluster 2: Infectious Disease Genomics",
-  "Cluster 3" = "Cluster 3: Functional Genomics",
-  "Cluster 4" = "Cluster 4: Biochemistry, Imaging & AI"
-)
-
-cluster_display_labels <- vapply(
-  valid_clusters,
-  function(cl) {
-    if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
-  },
-  character(1)
-)
+cluster_display_labels <- cluster_title_df |>
+  dplyr::mutate(label = paste0(cluster, ": ", profile)) |>
+  dplyr::filter(cluster %in% valid_clusters) |>
+  dplyr::pull(label)
 
 career_choices <- get_question_choices("Which career stage are you currently in?")
 org_choices <- get_question_choices("How would you describe the organisation in which you currently work?")
