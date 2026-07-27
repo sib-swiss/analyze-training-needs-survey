@@ -35,6 +35,31 @@ js_escape <- function(s) {
     gsub("\\$\\{", "\\\\${", x = _)
 }
 
+# Colorblind-friendly categorical palette (Okabe & Ito, 2008), the standard
+# palette for scientific figures. Excludes black and grey, which are reserved
+# for text/axes and "Other"/reference categories respectively. Interpolated
+# if more colors are requested than the base palette provides.
+cvd_palette <- function(n) {
+  base_pal <- unname(grDevices::palette.colors(palette = "Okabe-Ito"))
+  base_pal <- base_pal[!base_pal %in% c("#000000", "#999999")]
+  if (n <= length(base_pal)) {
+    base_pal[seq_len(n)]
+  } else {
+    grDevices::colorRampPalette(base_pal)(n)
+  }
+}
+
+# Pick a readable label colour (near-black or white) for text drawn on top of
+# a given fill colour, via WCAG relative luminance. A fixed label colour reads
+# fine on light segments but disappears on dark ones (e.g. the dark ends of a
+# diverging palette), so labels drawn on a fill need to adapt per-segment.
+label_colour_for <- function(hex) {
+  rgb <- grDevices::col2rgb(hex) / 255
+  lin <- ifelse(rgb <= 0.03928, rgb / 12.92, ((rgb + 0.055) / 1.055)^2.4)
+  luminance <- 0.2126 * lin["red", ] + 0.7152 * lin["green", ] + 0.0722 * lin["blue", ]
+  ifelse(luminance > 0.179, "grey15", "white")
+}
+
 # Render a Likert plot with per-plot toggle buttons for counts/% and
 # optionally Swiss-only/all respondents.
 #
@@ -209,7 +234,7 @@ build_question_dictionary <- function(df, meta_df) {
 			)
 		)
 
-	abbrev_path <- "data/course_abbrevations.csv"
+	abbrev_path <- "supplementary_data/supplementary_data2.csv"
 	if (file.exists(abbrev_path)) {
 		abbrev_tbl <- utils::read.csv(abbrev_path, stringsAsFactors = FALSE) |>
 			tibble::as_tibble() |>
@@ -248,9 +273,9 @@ plot_sib_course_pct <- function(
   base_size = 14
 ) {
   sib_colors <- c(
-    "#74C0E0",  # never
-    "#F4A942",  # more than a year ago
-    "#5BAF7A"   # within last year
+    "#56B4E9",  # never (sky blue)
+    "#E69F00",  # more than a year ago (orange)
+    "#009E73"   # within last year (bluish green)
   )
   names(sib_colors) <- sib_levels
 
@@ -280,15 +305,16 @@ plot_sib_course_pct <- function(
       ggplot2::ggplot(d, ggplot2::aes(x = pct, y = group, fill = sib)) +
         ggplot2::geom_col(position = "stack") +
         ggplot2::geom_text(
-          ggplot2::aes(label = n),
+          ggplot2::aes(label = n, colour = sib),
           position = ggplot2::position_stack(vjust = 0.5),
-          size = base_size / 4, colour = "grey20"
+          size = base_size / 4, show.legend = FALSE
         ) +
         ggplot2::scale_x_continuous(
           labels = scales::percent_format(),
           expand = ggplot2::expansion(mult = c(0, 0.05))
         ) +
         ggplot2::scale_fill_manual(values = sib_colors) +
+        ggplot2::scale_colour_manual(values = label_colour_for(sib_colors)) +
         ggplot2::labs(x = "Percentage", y = NULL, fill = NULL) +
         ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
         ggplot2::theme(legend.position = "bottom")
@@ -374,7 +400,9 @@ plot_likert <- function(
 		dplyr::ungroup() |>
 		dplyr::mutate(sub_question = stringr::str_wrap(sub_question, width = 40))
 
-	pal    <- RColorBrewer::brewer.pal(n_levels, "RdYlGn")
+	# RdBu (blue <-> red) is colorblind-safe; RdYlGn is not (relies on
+	# red-green hue discrimination, which fails for the most common CVD types).
+	pal    <- RColorBrewer::brewer.pal(n_levels, "RdBu")
 	colors <- setNames(pal, scale_levels)
 
 	if (positive_only) {
@@ -494,7 +522,8 @@ plot_likert <- function(
 								as.character(n)
 							} else {
 								ifelse(abs(xmax - xmin) < 0.03, "", scales::percent(pct, accuracy = 1))
-							}
+							},
+							label_colour = label_colour_for(colors[as.character(answer)])
 						)
 				} else {
 					# For the mid level, deduplicate: only label the right half (xmin == 0),
@@ -508,16 +537,16 @@ plot_likert <- function(
 								as.character(n)
 							} else {
 								ifelse(abs(xmax - xmin) < 0.03, "", scales::percent(pct, accuracy = 1))
-							}
+							},
+							label_colour = label_colour_for(colors[as.character(answer)])
 						) |>
 						dplyr::filter(!(is_mid & xmax <= 0))
 				}
 
 				ggplot2::geom_text(
-					ggplot2::aes(x = x_label, y = as.numeric(sub_question), label = label),
+					ggplot2::aes(x = x_label, y = as.numeric(sub_question), label = label, colour = label_colour),
 					data        = label_data,
 					size        = 2.8,
-					colour      = "grey20",
 					inherit.aes = FALSE
 				)
 			}
@@ -528,6 +557,7 @@ plot_likert <- function(
 			labels = levels(segments$sub_question)
 		) +
 		ggplot2::scale_fill_manual(values = colors, breaks = scale_levels) +
+		ggplot2::scale_colour_identity() +
 		ggplot2::labs(title = plot_title, x = NULL, y = NULL, fill = NULL) +
 		ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
 		ggplot2::theme(legend.position = "bottom")
@@ -606,28 +636,24 @@ plot_cluster_pies <- function(d, title) {
     )
 
 	n_vals <- nlevels(d$value_label)
-	base_pal <- unname(grDevices::palette.colors(palette = "Tableau 10"))
-	fill_pal <- if (n_vals <= length(base_pal)) {
-		base_pal[seq_len(n_vals)]
-	} else {
-		grDevices::colorRampPalette(base_pal)(n_vals)
-	}
+	fill_pal <- cvd_palette(n_vals)
 	names(fill_pal) <- levels(d$value_label)
 	other_label <- stringr::str_wrap("Other", width = 24)
 	if (other_label %in% names(fill_pal)) {
 		fill_pal[[other_label]] <- "lightgrey"
 	}
+	label_pal <- setNames(label_colour_for(fill_pal), names(fill_pal))
 
   ggplot2::ggplot(d, ggplot2::aes(x = "", y = pct, fill = value_label)) +
     ggplot2::geom_col(width = 1, colour = "white") +
 		ggplot2::scale_fill_manual(values = fill_pal, drop = FALSE) +
+		ggplot2::scale_colour_manual(values = label_pal, guide = "none") +
     ggplot2::coord_polar(theta = "y") +
     ggplot2::facet_wrap(~ cluster) +
     ggplot2::geom_text(
-      ggplot2::aes(label = ifelse(pct >= 0.05, scales::percent(pct, accuracy = 1), "")),
+      ggplot2::aes(label = ifelse(pct >= 0.05, scales::percent(pct, accuracy = 1), ""), colour = value_label),
       position = ggplot2::position_stack(vjust = 0.5),
-      size = 3,
-      colour = "grey15"
+      size = 3
     ) +
     ggplot2::labs(title = title, fill = NULL) +
     ggplot2::theme_void(base_size = 12) +

@@ -441,7 +441,7 @@ cluster_levels <- cluster_assignments |>
   dplyr::arrange(cluster) |>
   dplyr::pull(cluster)
 
-cluster_palette <- scales::hue_pal()(length(cluster_levels))
+cluster_palette <- cvd_palette(length(cluster_levels))
 names(cluster_palette) <- cluster_levels
 
 vertex_clusters <- paste("Cluster", igraph::membership(community))
