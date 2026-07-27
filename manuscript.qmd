@@ -279,7 +279,13 @@ p <- (p_a + p_b) /
   plot_annotation(tag_levels = "A") &
   theme(legend.position = "bottom")
 
-ggsave("manuscript_figures/main_text/fig2.pdf", p, width = 7, height = 5, dpi = 600)
+ggsave(
+  "manuscript_figures/main_text/fig2.pdf",
+  p,
+  width = 7,
+  height = 5,
+  dpi = 600
+)
 
 print(p)
 ```
@@ -304,7 +310,13 @@ p <- plot_likert(
 
 print(p)
 
-ggsave("manuscript_figures/main_text/fig3.pdf", p, width = 8, height = 12, dpi = 600)
+ggsave(
+  "manuscript_figures/main_text/fig3.pdf",
+  p,
+  width = 8,
+  height = 12,
+  dpi = 600
+)
 ```
 
 Barriers to participate in SIB courses were also assessed using a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-barriers, which indicates that the majority of respondents did not perceive any of the listed factors as a significant barrier to their participation in SIB courses. However, some respondents indicated that distance and course fees could be potential barriers.
@@ -327,7 +339,13 @@ p <- plot_likert(
 
 print(p)
 
-ggsave("manuscript_figures/main_text/fig4.pdf", p, width = 8, height = 6, dpi = 600)
+ggsave(
+  "manuscript_figures/main_text/fig4.pdf",
+  p,
+  width = 8,
+  height = 6,
+  dpi = 600
+)
 ```
 
 When asked about their preferred learning formats, respondents expressed a preference for blended modes (a combination of synchronous and asynchronous learning), multi-day intensive courses (2-5 days of live course activities) and interactive and problem-based learning approaches, such as bring your own data (participants utilize their own datasets to learn) and project-based learning (participants work in groups to investigate real-world problems). Remarkably, AI-assisted formats (integrates AI technologies into education to personalize learning) were generally less favored. The overall distribution of responses is shown in @fig-likert-formats.
@@ -350,8 +368,13 @@ p <- plot_likert(
 
 print(p)
 
-ggsave("manuscript_figures/main_text/fig5.pdf", p, width = 8, height = 6, dpi = 600)
-
+ggsave(
+  "manuscript_figures/main_text/fig5.pdf",
+  p,
+  width = 8,
+  height = 6,
+  dpi = 600
+)
 ```
 
 ### Graph-based clustering of course preference responses
@@ -450,27 +473,37 @@ vertex_colors <- unname(cluster_palette[vertex_clusters])
 edge_weights <- igraph::E(g)$weight
 edge_width <- scales::rescale(edge_weights, to = c(0.4, 2.5))
 
-pdf("manuscript_figures/main_text/fig6.pdf", width = 5, height = 5)
-plot(
-  g,
-  layout = layout_fr,
-  vertex.size = 4,
-  vertex.label = NA,
-  vertex.color = vertex_colors,
-  edge.width = edge_width,
-  edge.color = grDevices::adjustcolor("grey35", alpha.f = 0.35),
-  margin = 0.05
-)
+plot_network <- function() {
+  plot(
+    g,
+    layout = layout_fr,
+    vertex.size = 4,
+    vertex.label = NA,
+    vertex.color = vertex_colors,
+    edge.width = edge_width,
+    edge.color = grDevices::adjustcolor("grey35", alpha.f = 0.35),
+    margin = 0.05
+  )
 
-legend(
-  "topleft",
-  legend = names(cluster_palette),
-  col = unname(cluster_palette),
-  pch = 16,
-  pt.cex = 1.2,
-  bty = "n",
-  cex = 0.85
-)
+  legend(
+    "topleft",
+    legend = names(cluster_palette),
+    col = unname(cluster_palette),
+    pch = 16,
+    pt.cex = 1.2,
+    bty = "n",
+    cex = 0.85
+  )
+}
+
+plot_network()
+```
+
+```{r}
+#| label: fig-course-cluster-network-pdf
+#| output: false
+pdf("manuscript_figures/main_text/fig6.pdf", width = 5, height = 5)
+plot_network()
 dev.off()
 ```
 
@@ -527,7 +560,10 @@ cluster_title_df <- data.frame(
     "Biochemistry, Imaging & AI"
   )
 )
-cluster_title_map <- setNames(cluster_title_df$profile, cluster_title_df$cluster)
+cluster_title_map <- setNames(
+  cluster_title_df$profile,
+  cluster_title_df$cluster
+)
 
 
 cluster_interconnectedness |>
@@ -538,8 +574,15 @@ cluster_interconnectedness |>
     `edge density` = round(`edge density`, 3) #,
     # `mean internal weight` = round(`mean internal weight`, 3)
   ) |>
-    # rearrange columns
-  dplyr::select(cluster, profile, respondents, `internal edges`, `possible edges`, `edge density`) |>
+  # rearrange columns
+  dplyr::select(
+    cluster,
+    profile,
+    respondents,
+    `internal edges`,
+    `possible edges`,
+    `edge density`
+  ) |>
   knitr::kable()
 ```
 
@@ -593,7 +636,7 @@ for (cl in valid_clusters) {
     labels = TRUE,
     positive_only = TRUE,
     top_n_sub_questions = 10
-  ) 
+  )
 
   plot_list[[cl]] <- p
 }
@@ -604,7 +647,13 @@ p <- wrap_plots(plot_list, ncol = 1) +
 
 print(p)
 
-ggsave("manuscript_figures/main_text/fig6.pdf", p, width = 8, height = 12, dpi = 600)
+ggsave(
+  "manuscript_figures/main_text/fig6.pdf",
+  p,
+  width = 8,
+  height = 12,
+  dpi = 600
+)
 ```
 
 These learner profiles can be further characterized based on demographic characteristics (@fig-cluster-pie-career; Supplementary Figure 1-3), structural barriers to participation (Supplementary Figure 4), and preferred learning formats (Supplementary Figure 5). Such analyses can help training providers design targeted curricula that address the specific needs of each profile. For example, the 'AI and data' profile (Cluster 1) has a higher proportion of early-career scientists (PhD candidates and postdoctoral researchers; @fig-cluster-pie-career) and a higher proportion of respondents from academia (Supplementary Figure X), while the 'Biochemistry, imaging & AI' profile (Cluster 4) has a higher proportion of senior scientists and respondents from industry. These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each learner profile.
@@ -617,11 +666,17 @@ cluster_display_labels <- cluster_title_df |>
   dplyr::filter(cluster %in% valid_clusters) |>
   dplyr::pull(label)
 
-career_choices <- get_question_choices("Which career stage are you currently in?")
-org_choices <- get_question_choices("How would you describe the organisation in which you currently work?")
+career_choices <- get_question_choices(
+  "Which career stage are you currently in?"
+)
+org_choices <- get_question_choices(
+  "How would you describe the organisation in which you currently work?"
+)
 country_choices <- get_question_choices("In which country do you work?")
 canton_choices <- get_question_choices("In which canton do you work?")
-sib_course_choices <- get_question_choices("When did you last attend a SIB course?")
+sib_course_choices <- get_question_choices(
+  "When did you last attend a SIB course?"
+)
 
 cluster_demo <- survey_results |>
   dplyr::filter(cluster %in% valid_clusters)
@@ -629,7 +684,8 @@ cluster_demo <- survey_results |>
 cluster_demo <- cluster_demo |>
   dplyr::mutate(
     swiss_other = dplyr::case_when(
-      `In which country do you work?` %in% c("Switzerland", "Suisse") ~ "Switzerland",
+      `In which country do you work?` %in%
+        c("Switzerland", "Suisse") ~ "Switzerland",
       `In which country do you work?` %in% country_choices ~ "Other",
       TRUE ~ NA_character_
     )
@@ -651,7 +707,13 @@ career_pie <- make_cluster_pie_data(
 p <- plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
 print(p)
 
-ggsave("manuscript_figures/main_text/fig7.pdf", p, width = 7, height = 6, dpi = 600)
+ggsave(
+  "manuscript_figures/main_text/fig7.pdf",
+  p,
+  width = 7,
+  height = 6,
+  dpi = 600
+)
 ```
 
 ```{r}
@@ -665,7 +727,13 @@ org_pie <- make_cluster_pie_data(
 )
 
 p <- plot_cluster_pies(org_pie, "Organisation type by cluster") + ggtitle(NULL)
-ggsave("manuscript_figures/supplementary/figS1.pdf", p, width = 7, height = 6, dpi = 600)
+ggsave(
+  "manuscript_figures/supplementary/figS1.pdf",
+  p,
+  width = 7,
+  height = 6,
+  dpi = 600
+)
 
 swiss_pie <- make_cluster_pie_data(
   cluster_demo,
@@ -674,8 +742,15 @@ swiss_pie <- make_cluster_pie_data(
   top_n = 5
 )
 
-p <- plot_cluster_pies(swiss_pie, "Switzerland vs Other by cluster") + ggtitle(NULL)
-ggsave("manuscript_figures/supplementary/figS2.pdf", p, width = 7, height = 6, dpi = 600)
+p <- plot_cluster_pies(swiss_pie, "Switzerland vs Other by cluster") +
+  ggtitle(NULL)
+ggsave(
+  "manuscript_figures/supplementary/figS2.pdf",
+  p,
+  width = 7,
+  height = 6,
+  dpi = 600
+)
 
 canton_pie <- make_cluster_pie_data(
   cluster_demo,
@@ -685,7 +760,13 @@ canton_pie <- make_cluster_pie_data(
 )
 
 p <- plot_cluster_pies(canton_pie, "Canton by cluster") + ggtitle(NULL)
-ggsave("manuscript_figures/supplementary/figS3.pdf", p, width = 7, height = 6, dpi = 600)
+ggsave(
+  "manuscript_figures/supplementary/figS3.pdf",
+  p,
+  width = 7,
+  height = 6,
+  dpi = 600
+)
 ```
 
 ```{r}
@@ -693,7 +774,11 @@ ggsave("manuscript_figures/supplementary/figS3.pdf", p, width = 7, height = 6, d
 
 plot_list <- list()
 for (cl in valid_clusters) {
-  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+  cl_title <- if (cl %in% names(cluster_title_map)) {
+    cluster_title_map[[cl]]
+  } else {
+    cl
+  }
 
   p <- plot_likert(
     survey_long_cluster |> dplyr::filter(cluster == cl),
@@ -710,7 +795,13 @@ p <- wrap_plots(plot_list, ncol = 1) +
   plot_annotation(tag_levels = "A") &
   theme(legend.position = "none")
 
-ggsave("manuscript_figures/supplementary/figS4.pdf", p, width = 8, height = 14, dpi = 600)
+ggsave(
+  "manuscript_figures/supplementary/figS4.pdf",
+  p,
+  width = 8,
+  height = 14,
+  dpi = 600
+)
 ```
 
 ```{r}
@@ -718,7 +809,11 @@ ggsave("manuscript_figures/supplementary/figS4.pdf", p, width = 8, height = 14, 
 
 plot_list <- list()
 for (cl in valid_clusters) {
-  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+  cl_title <- if (cl %in% names(cluster_title_map)) {
+    cluster_title_map[[cl]]
+  } else {
+    cl
+  }
 
   p <- plot_likert(
     survey_long_cluster |> dplyr::filter(cluster == cl),
@@ -727,7 +822,7 @@ for (cl in valid_clusters) {
     labels = TRUE
   ) +
     ggplot2::labs(title = cl_title)
-  
+
   plot_list[[cl]] <- p
 }
 
@@ -735,8 +830,13 @@ p <- wrap_plots(plot_list, ncol = 1) +
   plot_annotation(tag_levels = "A") &
   theme(legend.position = "none")
 
-ggsave("manuscript_figures/supplementary/figS5.pdf", p, width = 8, height = 12, dpi = 600)
-
+ggsave(
+  "manuscript_figures/supplementary/figS5.pdf",
+  p,
+  width = 8,
+  height = 12,
+  dpi = 600
+)
 ```
 
 ## Discussion
