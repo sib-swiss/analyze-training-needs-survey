@@ -45,7 +45,7 @@ library(glue)
 
 source("functions.R")
 
-excel_path <- "data/SIB Training survey.xlsx"
+excel_path <- "supplementary_data/supplementary_data1.xlsx"
 metadata_path <- "question_metadata.json"
 
 survey_results <- readxl::read_excel(excel_path)
@@ -156,7 +156,7 @@ This paper describes a data-driven framework for understanding training needs ba
 
 ### Survey design and distribution
 
-The SIB training needs survey was designed to collect information using mostly multiple-choice and Likert-type questions. All survey questions, and anonymized responses, can be found on Zenodo (https://zenodo.org/records/20446763). At its core, the questionnaire evaluated course topics, barriers and formats using 5-point Likert-type scales:
+The SIB training needs survey was designed to collect information using mostly multiple-choice and Likert-type questions. All survey questions, and anonymized responses, can be found in Supplementary Data 1. At its core, the questionnaire evaluated course topics, barriers and formats using 5-point Likert-type scales:
 
 * Training needs: Respondents evaluated their training needs for detailed sub-topics nested within five global computational domains: *Omics analysis*, *Computational methods and AI*, *Data management and knowledge representation*, *Biomedicine and pathogens*, and *Biodiversity and Ecology*, which were quantified using an ordinal scale ranging from 'Not needed' to 'Absolutely essential'.
 * Perceived participation barriers: Participation barriers like course fees, travel distance, timing constraints, and prerequisite alignment were quantified using an ordinal scale ranging from 'No barrier' to 'Critical barrier'. 
@@ -273,21 +273,25 @@ p_d <- survey_results |>
   theme_minimal() +
   scale_y_discrete(labels = label_wrap(25))
 
-(p_a + p_b) /
+p <- (p_a + p_b) /
   (p_c + p_d) +
   plot_layout(guides = "collect") +
   plot_annotation(tag_levels = "A") &
   theme(legend.position = "bottom")
+
+ggsave("manuscript_figures/main_text/fig2.pdf", p, width = 7, height = 5, dpi = 600)
+
+print(p)
 ```
 
 For a wide range of pre-defined course topics, the respondents were asked to indicate their training needs on a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-preferences, which indicates that the majority of respondents expressed a need for training in AI-related topics, FAIR data and computational methods, as well as in integrating imaging with omics data. In contrast, topics related to e.g. transposable elements analysis and 16S sequencing data analysis were generally considered as less needed. 
 
 ```{r}
 #| label: fig-likert-preferences
-#| fig-cap: "Overall responses of training needs, shown in percentages and ordered by need. The topics are ordered by the proportion of respondents who indicated that they needed the topic (i.e. answered \"Very needed\" or \"Absolutely essential\"). Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in the Supplementary Materials."
+#| fig-cap: "Overall responses of training needs, shown in percentages and ordered by need. The topics are ordered by the proportion of respondents who indicated that they needed the topic (i.e. answered \"Very needed\" or \"Absolutely essential\"). Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in Supplementary Data 2."
 #| fig-height: 12
 
-plot_likert(
+p <- plot_likert(
   survey_long,
   all_topic_questions,
   counts = FALSE,
@@ -297,6 +301,10 @@ plot_likert(
     legend.position = "bottom",
     legend.direction = "vertical"
   )
+
+print(p)
+
+ggsave("manuscript_figures/main_text/fig3.pdf", p, width = 8, height = 12, dpi = 600)
 ```
 
 Barriers to participate in SIB courses were also assessed using a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-barriers, which indicates that the majority of respondents did not perceive any of the listed factors as a significant barrier to their participation in SIB courses. However, some respondents indicated that distance and course fees could be potential barriers.
@@ -305,7 +313,7 @@ Barriers to participate in SIB courses were also assessed using a 5-point Likert
 #| label: fig-likert-barriers
 #| fig-cap: "Overall responses of the question \"Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.\". The barriers are ordered by the proportion of respondents who indicated that they were not a barrier."
 #| fig-height: 6
-plot_likert(
+p <- plot_likert(
   survey_long,
   "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
   counts = FALSE,
@@ -316,15 +324,19 @@ plot_likert(
     legend.position = "bottom",
     legend.direction = "vertical"
   )
+
+print(p)
+
+ggsave("manuscript_figures/main_text/fig4.pdf", p, width = 8, height = 6, dpi = 600)
 ```
 
 When asked about their preferred learning formats, respondents expressed a preference for blended modes (a combination of synchronous and asynchronous learning), multi-day intensive courses (2-5 days of live course activities) and interactive and problem-based learning approaches, such as bring your own data (participants utilize their own datasets to learn) and project-based learning (participants work in groups to investigate real-world problems). Remarkably, AI-assisted formats (integrates AI technologies into education to personalize learning) were generally less favored. The overall distribution of responses is shown in @fig-likert-formats.
 
 ```{r}
 #| label: fig-likert-formats
-#| fig-cap: "Overall responses of the question \"Specify which learning formats you prefer. Note: these are not mutually exclusive, i.e. some can be used in combination\". The formats are ordered by the proportion of respondents who indicated that they liked or strongly liked the format. The original answers included an explanation of the format. For the full answers, please refer to the Supplementary Materials."
+#| fig-cap: "Overall responses of the question \"Specify which learning formats you prefer. Note: these are not mutually exclusive, i.e. some can be used in combination\". The formats are ordered by the proportion of respondents who indicated that they liked or strongly liked the format. The original answers included an explanation of the format. For the full answers, please refer to Supplementary Data 2."
 #| fig-height: 6
-plot_likert(
+p <- plot_likert(
   survey_long,
   "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
   counts = FALSE,
@@ -335,6 +347,11 @@ plot_likert(
     legend.position = "bottom",
     legend.direction = "vertical"
   )
+
+print(p)
+
+ggsave("manuscript_figures/main_text/fig5.pdf", p, width = 8, height = 6, dpi = 600)
+
 ```
 
 ### Graph-based clustering of course preference responses
@@ -433,6 +450,7 @@ vertex_colors <- unname(cluster_palette[vertex_clusters])
 edge_weights <- igraph::E(g)$weight
 edge_width <- scales::rescale(edge_weights, to = c(0.4, 2.5))
 
+pdf("manuscript_figures/main_text/fig6.pdf", width = 5, height = 5)
 plot(
   g,
   layout = layout_fr,
@@ -453,6 +471,7 @@ legend(
   bty = "n",
   cex = 0.85
 )
+dev.off()
 ```
 
 The resulting clusters were similar in size and displayed varying levels of internal similarity of responses. To evaluate this, we calculated the edge density (the proportion of actual connections out of all possible links)for each cluster (@tbl-cluster-interconnectedness), showing  that Cluster 1 exhibits the highest edge density. Therefore, respondents within Cluster 1 have more similar training needs compared to the other clusters.
@@ -560,7 +579,7 @@ survey_long_cluster <- survey_long |>
 
 ```{r}
 #| label: fig-topics-by-cluster
-#| fig-cap: "The top 10 most liked topics are shown for each cluster, indicating that each cluster has distinct training needs. Only the answers \"Very needed\" (light green) and \"Absolutely essential\" (dark green) are shown. The numbers in the bars represent the count of respondents within the respective cluster selecting the answer. (A) Cluster 1: AI and data. (B) Cluster 2: Infectious disease genomics. (C) Cluster 3: Functional genomics. (D) Cluster 4: Biochemistry, imaging & AI. Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in the Supplementary Materials."
+#| fig-cap: "The top 10 most liked topics are shown for each cluster, indicating that each cluster has distinct training needs. Only the answers \"Very needed\" (light green) and \"Absolutely essential\" (dark green) are shown. The numbers in the bars represent the count of respondents within the respective cluster selecting the answer. (A) Cluster 1: AI and data. (B) Cluster 2: Infectious disease genomics. (C) Cluster 3: Functional genomics. (D) Cluster 4: Biochemistry, imaging & AI. Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in Supplementary Data 2."
 #| fig-height: 20
 
 plot_list <- list()
@@ -579,12 +598,16 @@ for (cl in valid_clusters) {
   plot_list[[cl]] <- p
 }
 
-wrap_plots(plot_list, ncol = 1) +
+p <- wrap_plots(plot_list, ncol = 1) +
   plot_annotation(tag_levels = "A") &
   theme(legend.position = "none")
+
+print(p)
+
+ggsave("manuscript_figures/main_text/fig6.pdf", p, width = 8, height = 12, dpi = 600)
 ```
 
-These learner profiles can be further characterized based on demographic characteristics (@fig-cluster-pie-career; Supplementary Figure X), structural barriers to participation (Supplementary Figure X), and preferred learning formats (Supplementary Figure X). Such analyses can help training providers design targeted curricula that address the specific needs of each profile. For example, the 'AI and data' profile (Cluster 1) has a higher proportion of early-career scientists (PhD candidates and postdoctoral researchers; @fig-cluster-pie-career) and a higher proportion of respondents from academia (Supplementary Figure X), while the 'Biochemistry, imaging & AI' profile (Cluster 4) has a higher proportion of senior scientists and respondents from industry. These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each learner profile.
+These learner profiles can be further characterized based on demographic characteristics (@fig-cluster-pie-career; Supplementary Figure 1-3), structural barriers to participation (Supplementary Figure 4), and preferred learning formats (Supplementary Figure 5). Such analyses can help training providers design targeted curricula that address the specific needs of each profile. For example, the 'AI and data' profile (Cluster 1) has a higher proportion of early-career scientists (PhD candidates and postdoctoral researchers; @fig-cluster-pie-career) and a higher proportion of respondents from academia (Supplementary Figure X), while the 'Biochemistry, imaging & AI' profile (Cluster 4) has a higher proportion of senior scientists and respondents from industry. These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each learner profile.
 
 ```{r}
 #| label: cluster-pie-helpers
@@ -625,7 +648,95 @@ career_pie <- make_cluster_pie_data(
   top_n = 5
 )
 
-plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
+p <- plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
+print(p)
+
+ggsave("manuscript_figures/main_text/fig7.pdf", p, width = 7, height = 6, dpi = 600)
+```
+
+```{r}
+#| label : supp-cluster-pie
+
+org_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "How would you describe the organisation in which you currently work?",
+  allowed_choices = org_choices,
+  top_n = 5
+)
+
+p <- plot_cluster_pies(org_pie, "Organisation type by cluster") + ggtitle(NULL)
+ggsave("manuscript_figures/supplementary/figS1.pdf", p, width = 7, height = 6, dpi = 600)
+
+swiss_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "swiss_other",
+  allowed_choices = c("Switzerland", "Other"),
+  top_n = 5
+)
+
+p <- plot_cluster_pies(swiss_pie, "Switzerland vs Other by cluster") + ggtitle(NULL)
+ggsave("manuscript_figures/supplementary/figS2.pdf", p, width = 7, height = 6, dpi = 600)
+
+canton_pie <- make_cluster_pie_data(
+  cluster_demo,
+  value_col = "In which canton do you work?",
+  allowed_choices = canton_choices,
+  top_n = 5
+)
+
+p <- plot_cluster_pies(canton_pie, "Canton by cluster") + ggtitle(NULL)
+ggsave("manuscript_figures/supplementary/figS3.pdf", p, width = 7, height = 6, dpi = 600)
+```
+
+```{r}
+#| label : supp-cluster-barriers
+
+plot_list <- list()
+for (cl in valid_clusters) {
+  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+
+  p <- plot_likert(
+    survey_long_cluster |> dplyr::filter(cluster == cl),
+    "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+    counts = FALSE,
+    labels = TRUE
+  ) +
+    ggplot2::labs(title = cl_title)
+
+  plot_list[[cl]] <- p
+}
+
+p <- wrap_plots(plot_list, ncol = 1) +
+  plot_annotation(tag_levels = "A") &
+  theme(legend.position = "none")
+
+ggsave("manuscript_figures/supplementary/figS4.pdf", p, width = 8, height = 14, dpi = 600)
+```
+
+```{r}
+#| label : supp-cluster-formats
+
+plot_list <- list()
+for (cl in valid_clusters) {
+  cl_title <- if (cl %in% names(cluster_title_map)) cluster_title_map[[cl]] else cl
+
+  p <- plot_likert(
+    survey_long_cluster |> dplyr::filter(cluster == cl),
+    "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+    counts = FALSE,
+    labels = TRUE
+  ) +
+    ggplot2::labs(title = cl_title)
+  
+  plot_list[[cl]] <- p
+}
+
+p <- wrap_plots(plot_list, ncol = 1) +
+  plot_annotation(tag_levels = "A") &
+  theme(legend.position = "none")
+
+ggsave("manuscript_figures/supplementary/figS5.pdf", p, width = 8, height = 12, dpi = 600)
+
 ```
 
 ## Discussion
