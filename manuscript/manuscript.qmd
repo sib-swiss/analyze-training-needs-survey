@@ -1,6 +1,7 @@
 ---
 title: "Characterization of heterogeneous bioinformatics training needs in the AI era"
 bibliography: references.bib
+csl: briefings-in-bioinformatics.csl
 author: Geert van Geest, Valeria Di Cola, Monique Zahn, Diana Marek, Gregoire Rossier, Wandrille Duchemin, Tania Wyss, Joana Carlevaro-Fita, Deepak Tanwar, Marion Vaucher, Patricia M. Palagi
 format:
   html:
@@ -28,19 +29,8 @@ abstract: |
 ```{r}
 #| label: setup
 
-# `here` locates the repository root (via .git) regardless of the working
-# directory quarto/knitr executes this document from, so the paths below
-# don't depend on being rendered from any particular directory. This also
-# activates renv even if this document's own directory has no .Rprofile of
-# its own to trigger it at R startup — as long as `here` itself is reachable
-# outside the project's renv library (true for most R installations, since
-# it's tiny and extremely commonly pre-installed). RENV_PROJECT must be set
-# explicitly: renv/activate.R otherwise infers the project root from the
-# current working directory, not from where it was sourced from.
 library(here)
 here::i_am("manuscript/manuscript.qmd")
-# Sys.setenv(RENV_PROJECT = here::here())
-# source(here::here("renv", "activate.R"))
 
 library(dplyr)
 library(tidyr)
