@@ -280,7 +280,7 @@ p <- (p_a + p_b) /
   theme(legend.position = "bottom")
 
 ggsave(
-  "manuscript_figures/main_text/fig2.pdf",
+  "manuscript_figures/main_text/fig2.jpg",
   p,
   width = 7,
   height = 5,
@@ -311,7 +311,7 @@ p <- plot_likert(
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig3.pdf",
+  "manuscript_figures/main_text/fig3.jpg",
   p,
   width = 8,
   height = 12,
@@ -340,7 +340,7 @@ p <- plot_likert(
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig4.pdf",
+  "manuscript_figures/main_text/fig4.jpg",
   p,
   width = 8,
   height = 6,
@@ -369,7 +369,7 @@ p <- plot_likert(
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig5.pdf",
+  "manuscript_figures/main_text/fig5.jpg",
   p,
   width = 8,
   height = 6,
@@ -502,7 +502,7 @@ plot_network()
 ```{r}
 #| label: fig-course-cluster-network-pdf
 #| output: false
-pdf("manuscript_figures/main_text/fig6.pdf", width = 5, height = 5)
+jpeg("manuscript_figures/main_text/fig6.jpg", width = 7, height = 5, units = "in", res = 600)
 plot_network()
 dev.off()
 ```
@@ -648,7 +648,7 @@ p <- wrap_plots(plot_list, ncol = 1) +
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig6.pdf",
+  "manuscript_figures/main_text/fig7.jpg",
   p,
   width = 8,
   height = 12,
@@ -708,7 +708,7 @@ p <- plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig7.pdf",
+  "manuscript_figures/main_text/fig8.jpg",
   p,
   width = 7,
   height = 6,
@@ -728,7 +728,7 @@ org_pie <- make_cluster_pie_data(
 
 p <- plot_cluster_pies(org_pie, "Organisation type by cluster") + ggtitle(NULL)
 ggsave(
-  "manuscript_figures/supplementary/figS1.pdf",
+  "manuscript_figures/supplementary/figS1.jpg",
   p,
   width = 7,
   height = 6,
@@ -745,7 +745,7 @@ swiss_pie <- make_cluster_pie_data(
 p <- plot_cluster_pies(swiss_pie, "Switzerland vs Other by cluster") +
   ggtitle(NULL)
 ggsave(
-  "manuscript_figures/supplementary/figS2.pdf",
+  "manuscript_figures/supplementary/figS2.jpg",
   p,
   width = 7,
   height = 6,
@@ -761,7 +761,7 @@ canton_pie <- make_cluster_pie_data(
 
 p <- plot_cluster_pies(canton_pie, "Canton by cluster") + ggtitle(NULL)
 ggsave(
-  "manuscript_figures/supplementary/figS3.pdf",
+  "manuscript_figures/supplementary/figS3.jpg",
   p,
   width = 7,
   height = 6,
@@ -796,7 +796,7 @@ p <- wrap_plots(plot_list, ncol = 1) +
   theme(legend.position = "none")
 
 ggsave(
-  "manuscript_figures/supplementary/figS4.pdf",
+  "manuscript_figures/supplementary/figS4.jpg",
   p,
   width = 8,
   height = 14,
@@ -831,7 +831,7 @@ p <- wrap_plots(plot_list, ncol = 1) +
   theme(legend.position = "none")
 
 ggsave(
-  "manuscript_figures/supplementary/figS5.pdf",
+  "manuscript_figures/supplementary/figS5.jpg",
   p,
   width = 8,
   height = 12,

@@ -7,5 +7,7 @@
 ~$*
 *.html
 /.quarto/
+cover_letter*
+title_page*
 
 **/*.quarto_ipynb
