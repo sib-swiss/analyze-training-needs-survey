@@ -44,10 +44,10 @@ jobs:
         uses: r-lib/actions/setup-renv@v2
 
       - name: Render Quarto document
-        run: quarto render manuscript.qmd --to html
+        run: quarto render manuscript/manuscript.qmd --to html
 
       - name: Rename output to index.html
-        run: cp manuscript.html index.html
+        run: cp manuscript/manuscript.html index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

@@ -19,17 +19,29 @@ execute:
   warning: false
   message: false
 abstract: | 
-  **Background**: Bioinformatics training demands are heterogeneous, and it can be challenging to design training programs that meet diverse needs, especially in the context of emerging technologies, like generative AI. To address this, we analyzed the 2026 SIB Swiss Institute of Bioinformatics (SIB) training needs survey using a network-based strategy that identifies respondent subgroups from shared topic preferences. 
+  Bioinformatics training demands are highly heterogeneous, making it challenging to design programs that meet diverse needs, particularly alongside emerging technologies like generative AI. To address this, we used a combination of a Likert-type survey with a network-based clustering framework to understand respondent heterogeneity. With this approach, we analyzed the 2026 SIB Swiss Institute of Bioinformatics training needs survey (n=260, March–April 2026) to evaluate potential course topics, participation barriers, format preferences, and demographic variables. A correlation network was constructed from course-topic ratings, and Louvain community detection was applied to group respondents into distinct learner profiles based on shared preferences.
 
-  **Methods**: We analyzed 260 responses collected over 6 weeks (March-April 2026), including Likert-type ratings for training topics, participation barriers, and preferred course formats, as well as demographic variables. Responses were analyzed as a single group and as clusters. For cluster analysis, respondents were represented as nodes in a correlation network built from course-topic ratings and Louvain community detection was applied to identify clusters. Each cluster was then characterized as a learner profile using topic priorities, barriers, format preferences, and demographics. 
+  Across all respondents, skills in AI/LLM were in highest demand, with four AI-related topics ranking within the top six overall priorities, alongside reproducible data practices and computational methods. Regarding course delivery, respondents favored interactive and multi-day formats, whereas AI-assisted learning was unexpectedly the least preferred. Rather than relying solely on traditional demographic stratification, network analysis successfully identified four distinct, interpretable learner profiles: AI and data, infectious disease genomics, functional genomics, and biochemistry, imaging & AI. Each profile showed specific topic priorities, format preferences, and learning barriers. Ultimately, these findings highlight a strong demand for AI and reproducibility skills combined with a preference for human interaction during training. Integrating network-derived learner profiles into curriculum design offers an actionable framework to optimize topic selection, tailor delivery formats, and mitigate learning barriers.
 
-  **Results**: Respondents indicated their need for training across a total of 33 possible course topics. Four of the possible topics related to AI/LLM skills and all of them were in the top six of most needed topics. Other than AI, reproducible data practices and computational methods were in high demand. Concerning course formats, interactive and multi-day courses were generally preferred. Remarkably, AI-assisted learning formats were the least favored. Network analysis identified four interpretable learner profiles: AI and data, infectious disease genomics, functional genomics, and biochemistry, imaging & AI, with each profile exhibiting distinct training needs and preferences. 
-
-  **Conclusions**: There is a clear need for skills in AI and reproducible research, and respondents favored formats involving human interaction. Network-based clustering revealed actionable training-need heterogeneity that is not captured by demographic stratification alone. Integrating these learner profiles into curriculum design can improve identification of course topics, format selection, and barrier mitigation, supporting more effective and responsive bioinformatics training programs, particularly in the context of AI and emerging technologies. 
 ---
 
 ```{r}
 #| label: setup
+
+# `here` locates the repository root (via .git) regardless of the working
+# directory quarto/knitr executes this document from, so the paths below
+# don't depend on being rendered from any particular directory. This also
+# activates renv even if this document's own directory has no .Rprofile of
+# its own to trigger it at R startup — as long as `here` itself is reachable
+# outside the project's renv library (true for most R installations, since
+# it's tiny and extremely commonly pre-installed). RENV_PROJECT must be set
+# explicitly: renv/activate.R otherwise infers the project root from the
+# current working directory, not from where it was sourced from.
+library(here)
+here::i_am("manuscript/manuscript.qmd")
+# Sys.setenv(RENV_PROJECT = here::here())
+# source(here::here("renv", "activate.R"))
+
 library(dplyr)
 library(tidyr)
 library(stringr)
@@ -43,10 +55,12 @@ library(patchwork)
 library(svglite)
 library(glue)
 
-source("functions.R")
+source(here::here("R", "data_prep.R"))
+source(here::here("R", "plotting.R"))
+source(here::here("R", "clustering.R"))
 
-excel_path <- "supplementary_data/supplementary_data1.xlsx"
-metadata_path <- "question_metadata.json"
+excel_path <- here::here("data", "supplementary_data1.xlsx")
+metadata_path <- here::here("survey", "question_metadata.json")
 
 survey_results <- readxl::read_excel(excel_path)
 
@@ -280,7 +294,7 @@ p <- (p_a + p_b) /
   theme(legend.position = "bottom")
 
 ggsave(
-  "manuscript_figures/main_text/fig2.jpg",
+  here::here("manuscript", "figures", "main_text", "fig2.jpg"),
   p,
   width = 7,
   height = 5,
@@ -311,7 +325,7 @@ p <- plot_likert(
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig3.jpg",
+  here::here("manuscript", "figures", "main_text", "fig3.jpg"),
   p,
   width = 8,
   height = 12,
@@ -340,7 +354,7 @@ p <- plot_likert(
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig4.jpg",
+  here::here("manuscript", "figures", "main_text", "fig4.jpg"),
   p,
   width = 8,
   height = 6,
@@ -369,7 +383,7 @@ p <- plot_likert(
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig5.jpg",
+  here::here("manuscript", "figures", "main_text", "fig5.jpg"),
   p,
   width = 8,
   height = 6,
@@ -385,71 +399,19 @@ To group respondents based on their training needs, we constructed a network whe
 #| label: cluster-course-preferences
 #| fig-width: 4
 
-course_scale <- meta_df |>
-  dplyr::filter(main_question %in% all_topic_questions) |>
-  dplyr::pull(scale) |>
-  purrr::pluck(1)
-
-course_matrix_tbl <- survey_long |>
-  dplyr::filter(
-    question_type == "likert",
-    main_question %in% all_topic_questions,
-    !is.na(sub_question),
-    !is.na(answer)
-  ) |>
-  dplyr::mutate(
-    feature = paste(main_question, sub_question, sep = " :: "),
-    score = as.numeric(match(answer, course_scale))
-  ) |>
-  dplyr::select(respondent_id, feature, score) |>
-  tidyr::pivot_wider(names_from = feature, values_from = score)
-
-course_matrix <- course_matrix_tbl |>
-  dplyr::select(-respondent_id) |>
-  as.matrix()
-
-# setting NAs to 1 (the lowest score, corresponding to "Not needed") allows us to keep respondents with some missing values in the correlation step, under the assumption that non-responses indicate a lack of interest in the topic.
-course_matrix[is.na(course_matrix)] <- 1
-
-# Pairwise respondent correlation network. NAs are handled pairwise.
-respondent_cor <- stats::cor(t(course_matrix), use = "pairwise.complete.obs")
-diag(respondent_cor) <- 0
-
-# Keep only stronger positive edges to avoid a fully connected graph.
-edge_threshold <- stats::quantile(
-  respondent_cor[upper.tri(respondent_cor)],
-  probs = 0.8,
-  na.rm = TRUE
+cluster_result <- build_cluster_network(
+  survey_long,
+  meta_df,
+  all_topic_questions,
+  edge_percentile = 0.8,
+  resolution = 1,
+  seed = 20260511
 )
 
-# create graph from adjacency matrix
-adjacency <- respondent_cor
-adjacency[is.na(adjacency)] <- 0
-adjacency[adjacency < edge_threshold] <- 0
-
-g <- igraph::graph_from_adjacency_matrix(
-  adjacency,
-  mode = "undirected",
-  weighted = TRUE,
-  diag = FALSE
-)
-
-# add respondent_id as vertex attribute for later merging with survey data
-igraph::V(g)$respondent_id <- course_matrix_tbl$respondent_id
-
-# louvain community detection with edge weights and resolution parameter to control cluster granularity.
-set.seed(20260511)
-community <- igraph::cluster_louvain(
-  g,
-  weights = igraph::E(g)$weight,
-  resolution = 1
-)
-
-# create a tibble mapping respondent_id to cluster membership
-cluster_assignments <- tibble::tibble(
-  respondent_id = igraph::V(g)$respondent_id,
-  cluster = factor(paste("Cluster", igraph::membership(community)))
-)
+g <- cluster_result$graph
+community <- cluster_result$community
+edge_threshold <- cluster_result$edge_threshold
+cluster_assignments <- cluster_result$cluster_assignments
 ```
 
 ```{r}
@@ -457,52 +419,14 @@ cluster_assignments <- tibble::tibble(
 #| fig-cap: "Respondent network from course-topic preference correlations. Edge widths indicate stronger positive correlation; colors indicate Louvain communities. Cluster 5 is an outlier cluster with a single respondent and was removed from further analysis."
 #| fig-height: 5
 
-layout_fr <- igraph::layout_with_fr(g)
-
-cluster_levels <- cluster_assignments |>
-  dplyr::distinct(cluster) |>
-  dplyr::arrange(cluster) |>
-  dplyr::pull(cluster)
-
-cluster_palette <- cvd_palette(length(cluster_levels))
-names(cluster_palette) <- cluster_levels
-
-vertex_clusters <- paste("Cluster", igraph::membership(community))
-vertex_colors <- unname(cluster_palette[vertex_clusters])
-
-edge_weights <- igraph::E(g)$weight
-edge_width <- scales::rescale(edge_weights, to = c(0.4, 2.5))
-
-plot_network <- function() {
-  plot(
-    g,
-    layout = layout_fr,
-    vertex.size = 4,
-    vertex.label = NA,
-    vertex.color = vertex_colors,
-    edge.width = edge_width,
-    edge.color = grDevices::adjustcolor("grey35", alpha.f = 0.35),
-    margin = 0.05
-  )
-
-  legend(
-    "topleft",
-    legend = names(cluster_palette),
-    col = unname(cluster_palette),
-    pch = 16,
-    pt.cex = 1.2,
-    bty = "n",
-    cex = 0.85
-  )
-}
-
+plot_network <- plot_cluster_network(g, community)
 plot_network()
 ```
 
 ```{r}
 #| label: fig-course-cluster-network-pdf
 #| output: false
-jpeg("manuscript_figures/main_text/fig6.jpg", width = 7, height = 5, units = "in", res = 600)
+jpeg(here::here("manuscript", "figures", "main_text", "fig6.jpg"), width = 7, height = 5, units = "in", res = 600)
 plot_network()
 dev.off()
 ```
@@ -513,43 +437,7 @@ The resulting clusters were similar in size and displayed varying levels of inte
 #| label: tbl-cluster-interconnectedness
 #| tbl-cap: "Within-cluster interconnectedness scores. Nodes: the number of nodes (= respondents) in the cluster; internal edges: number of edges within a cluster; possible edges: all possible edges given the number of nodes; edge density: internal edges/possible edges."
 
-membership_vec <- igraph::membership(community)
-
-cluster_interconnectedness <- sort(unique(membership_vec)) |>
-  purrr::map_dfr(function(cl_id) {
-    vids <- which(membership_vec == cl_id)
-    subg <- igraph::induced_subgraph(g, vids = vids)
-
-    # number of nodes and edges within the cluster
-    n_nodes <- igraph::vcount(subg)
-    # number of edges with both endpoints in the cluster
-    internal_edges <- igraph::ecount(subg)
-    # number of possible edges within the cluster (undirected, no self-loops)
-    possible_edges <- n_nodes * (n_nodes - 1) / 2
-    # total weight of edges within the cluster
-    total_internal_weight <- if (internal_edges > 0) {
-      sum(igraph::E(subg)$weight)
-    } else {
-      0
-    }
-
-    tibble::tibble(
-      cluster = paste("Cluster", cl_id),
-      respondents = n_nodes,
-      `internal edges` = internal_edges,
-      `possible edges` = possible_edges,
-      # proportion of possible edges that actually exist within the cluster
-      `edge density` = ifelse(
-        possible_edges > 0,
-        internal_edges / possible_edges,
-        NA_real_
-      ) #,
-      # average number of internal connections per node within the cluster
-      #   `mean internal degree` = mean(igraph::degree(subg)),
-      #   `total internal weight` = total_internal_weight,
-      #   `mean internal weight` = ifelse(internal_edges > 0, total_internal_weight / internal_edges, NA_real_)
-    )
-  })
+cluster_interconnectedness_tbl <- cluster_interconnectedness(g, community)
 
 cluster_title_df <- data.frame(
   cluster = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"),
@@ -566,22 +454,19 @@ cluster_title_map <- setNames(
 )
 
 
-cluster_interconnectedness |>
+cluster_interconnectedness_tbl |>
   dplyr::filter(cluster != "Cluster 5") |>
   dplyr::left_join(cluster_title_df, by = "cluster") |>
   dplyr::arrange(cluster) |>
-  dplyr::mutate(
-    `edge density` = round(`edge density`, 3) #,
-    # `mean internal weight` = round(`mean internal weight`, 3)
-  ) |>
-  # rearrange columns
+  dplyr::mutate(edge_density = round(edge_density, 3)) |>
+  # rearrange and rename columns for display
   dplyr::select(
     cluster,
     profile,
-    respondents,
-    `internal edges`,
-    `possible edges`,
-    `edge density`
+    respondents = n_nodes,
+    `internal edges` = internal_edges,
+    `possible edges` = possible_edges,
+    `edge density` = edge_density
   ) |>
   knitr::kable()
 ```
@@ -648,7 +533,7 @@ p <- wrap_plots(plot_list, ncol = 1) +
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig7.jpg",
+  here::here("manuscript", "figures", "main_text", "fig7.jpg"),
   p,
   width = 8,
   height = 12,
@@ -708,7 +593,7 @@ p <- plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
 print(p)
 
 ggsave(
-  "manuscript_figures/main_text/fig8.jpg",
+  here::here("manuscript", "figures", "main_text", "fig8.jpg"),
   p,
   width = 7,
   height = 6,
@@ -728,7 +613,7 @@ org_pie <- make_cluster_pie_data(
 
 p <- plot_cluster_pies(org_pie, "Organisation type by cluster") + ggtitle(NULL)
 ggsave(
-  "manuscript_figures/supplementary/figS1.jpg",
+  here::here("manuscript", "figures", "supplementary", "figS1.jpg"),
   p,
   width = 7,
   height = 6,
@@ -745,7 +630,7 @@ swiss_pie <- make_cluster_pie_data(
 p <- plot_cluster_pies(swiss_pie, "Switzerland vs Other by cluster") +
   ggtitle(NULL)
 ggsave(
-  "manuscript_figures/supplementary/figS2.jpg",
+  here::here("manuscript", "figures", "supplementary", "figS2.jpg"),
   p,
   width = 7,
   height = 6,
@@ -761,7 +646,7 @@ canton_pie <- make_cluster_pie_data(
 
 p <- plot_cluster_pies(canton_pie, "Canton by cluster") + ggtitle(NULL)
 ggsave(
-  "manuscript_figures/supplementary/figS3.jpg",
+  here::here("manuscript", "figures", "supplementary", "figS3.jpg"),
   p,
   width = 7,
   height = 6,
@@ -796,7 +681,7 @@ p <- wrap_plots(plot_list, ncol = 1) +
   theme(legend.position = "none")
 
 ggsave(
-  "manuscript_figures/supplementary/figS4.jpg",
+  here::here("manuscript", "figures", "supplementary", "figS4.jpg"),
   p,
   width = 8,
   height = 14,
@@ -831,7 +716,7 @@ p <- wrap_plots(plot_list, ncol = 1) +
   theme(legend.position = "none")
 
 ggsave(
-  "manuscript_figures/supplementary/figS5.jpg",
+  here::here("manuscript", "figures", "supplementary", "figS5.jpg"),
   p,
   width = 8,
   height = 12,

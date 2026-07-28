@@ -43,8 +43,8 @@ library(glue)
 
 source("functions.R")
 
-excel_path <- "supplementary_data/supplementary_data1.xlsx"
-metadata_path <- "question_metadata.json"
+excel_path <- "data/supplementary_data1.xlsx"
+metadata_path <- "survey/question_metadata.json"
 
 survey_results <- readxl::read_excel(excel_path)
 
