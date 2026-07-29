@@ -206,37 +206,47 @@ We evaluated stability by resampling 80% of respondents over 100 iterations, rer
 
 ```{mermaid}
 %%| label: fig-cluster-workflow
-%%| fig-cap: "Graph-based clustering workflow for identifying learner profiles. Respondents are modeled as nodes in a network, with edges representing pairwise correlation of training needs. Leiden community detection is applied to identify clusters of respondents with similar training needs, which are subsequently characterized as distinct learner profiles."
+%%| fig-cap: "Graph-based clustering workflow for identifying learner profiles. Respondents are modeled as nodes in a network, with edges representing pairwise correlation of training needs. The edge-threshold percentile and resolution were identified using a parameter sweep. For each candidate combination, the network was pruned and clustered with Leiden community detection, and the resulting partition's resampling stability (Adjusted Rand Index) was evaluated. The most stable, interpretable configuration from this sweep was then used to build the final pruned network and cluster respondents into the learner profiles reported here."
 
 graph TD
     %% Define Styles
     classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
     classDef process fill:#e1f5fe,stroke:#0288d1,stroke-width:1px,font-style:italic;
+    classDef validate fill:#fff3e0,stroke:#e65100,stroke-width:1px,font-style:italic;
     classDef cluster fill:#fff,stroke:#333,stroke-width:2px;
 
     %% Nodes
     A[SURVEY RESPONDENT POOL]
     B(Pearson Pairwise Correlation)
-    C[PRUNED RESPONDENT NETWORK <br> r > 0.17]
-    D(Leiden Community Detection)
-    
+
+    subgraph SWEEP [Parameter sweep: repeated per candidate percentile x resolution]
+        direction TB
+        P(Prune network at candidate percentile)
+        L(Leiden clustering at candidate resolution)
+        R(Resampling stability analysis <br> Adjusted Rand Index)
+        P --> L --> R
+    end
+
+    U[Most stable, interpretable configuration selected]
+
     E[Cluster 1 <br> AI & Data]
     F[Cluster 2 <br> Infectious diseases genomics]
     G[Cluster 3 <br> Functional genomics]
     H[Cluster 4 <br> Biochemistry, imaging and AI]
 
     %% Class Assignments
-    class B,D process;
+    class B,D,P,L process;
+    class R validate;
     class E,F,G,H cluster;
 
     %% Connections
     A --> B
-    B --> C
-    C --> D
-    D --> E
-    D --> F
-    D --> G
-    D --> H
+    B --> P
+    R --> U
+    U --> E
+    U --> F
+    U --> G
+    U --> H
 
 ```
 
@@ -781,7 +791,7 @@ The problems that can be solved with bioinformatics are very diverse, and profes
 
 Several of these applications rely on latent class analysis [@wenger_analysing_2024; @hooghe_comparative_2016; @chung_are_2020], a model-based alternative that assumes respondents are drawn from a mixture of latent groups, each characterized by its own probability of endorsing every item [@weller_latent_2020]. Unlike latent class analysis, our approach does not require responses to different items to be conditionally independent once class membership is known — that is, it does not assume that knowing a respondent's class fully explains any correlation between their answers to different items. This assumption is difficult to justify for our type of survey: the 33 course-topic items are not a flat, arbitrary list, but are grouped by design into 5 thematic domains, each spanning several related sub-topics — within "Computational methods and AI" alone, "AI-assisted coding and analysis", "Advanced AI techniques", and "Using large language models (LLM) for biomedical knowledge extraction" all appear together. Items sharing a domain correlate simply because they share that domain, independent of whichever latent class a respondent might be assigned to: all four learner profiles we identified had AI-related topics among their top 10 most-needed, a pattern consistent with a general interest in AI that cuts across profiles rather than being fully explained by profile membership, which is the kind of residual item correlation that the assumption of local independence rules out. Our approach also avoids the chance of overfitting by using a latent class model: with four classes and 33 five-level items, estimating a full response-probability profile per item and class would require an estimated 531 free parameters (4 classes × 33 items × 4 free category probabilities, plus 3 class-proportion parameters), exceeding our sample of 260 respondents and risking unstable or non-identifiable class solutions. Network-based clustering avoids this altogether by reducing each respondent's 33-item profile to a single pairwise similarity score, so the number of parameters needed to define the clustering does not grow with the number of items. 
 
-Our presented combination of survey with Likert-type questions and multiple-choice demographic questions with network-based clustering analysis provides an effective method to understand heterogeneous training needs. Similarly designed future training-needs surveys would run in similar limitations on the assumptions of latent class analysis, making network-based clustering a  broadly appropriate method for analysis. The clustering approach itself does not depend on the specific topics, wording, or number of domains used in our survey data — it only requires a set of Likert-type items sharing a common scale, asked of every respondent. This makes it directly reusable for other training-needs assessments. The accompanying implementation exposes the survey design, preprocessing, and clustering steps as parameterized, reusable functions, so the protocol can be applied to a new dataset simply by supplying a new response export and question metadata file.
+Our presented combination of survey with Likert-type questions and multiple-choice demographic questions with network-based clustering analysis provides an effective method to understand heterogeneous training needs. Similarly designed future training-needs surveys would run in similar limitations on the assumptions of latent class analysis, making network-based clustering a  broadly appropriate method for analysis. The clustering approach itself does not depend on the specific topics, wording, or number of domains used in our survey data — it only requires a set of Likert-type items sharing a common scale, asked of every respondent. This makes it directly reusable for other training-needs assessments. The accompanying implementation (https://github.com/sib-swiss/analyze-training-needs-survey) includes the survey design, preprocessing, and clustering steps as parameterized, reusable functions, so the protocol can be applied to a new dataset simply by supplying a new response export and question metadata file.
 
 ### Survey outcomes
 
