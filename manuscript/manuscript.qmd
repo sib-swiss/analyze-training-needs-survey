@@ -160,6 +160,7 @@ cluster_title_map <- setNames(
 **Biographical note:** the authors are members of the SIB Training group, that provides training to ensure that life scientists make the best of the latest advances in computational biology. 
 
 **Key points:**
+
 1.	We present a validated, openly available network-clustering method for identifying learner profiles from training-needs survey data.
 2.	Applied to the 2026 SIB training needs survey, the method identified four thematically distinct, reproducible learner profiles, capturing training-need heterogeneity that demographics miss.
 3.	AI/LLM skills are the top training gap across all profiles, alongside strong demand for FAIR/reproducible data practices — yet respondents prefer human-led formats over AI-assisted learning.
