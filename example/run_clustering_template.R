@@ -16,9 +16,13 @@
 #      survey/README.md for the expected schema).
 #   2. Update `topic_questions` below to the main-question stems you want to
 #      cluster respondents on.
-#   3. Tune edge_percentile/resolution in build_cluster_network() if the
-#      resulting clusters are too coarse (few, large clusters) or too fine
-#      (many singleton/near-singleton clusters) for your data.
+#   3. Don't just guess edge_percentile/resolution/algorithm — sweep them with
+#      sweep_cluster_parameters() (also in R/clustering.R) and pick a setting
+#      that maximizes resampling stability (cluster_stability()) among
+#      configurations with a comparable, interpretable number of clusters.
+#      The manuscript's own choice (60th percentile, resolution 1, Leiden)
+#      was arrived at this way, starting from an initial guess of the 80th
+#      percentile with Louvain that turned out to be far less stable.
 
 library(here)
 here::i_am("example/run_clustering_template.R")
@@ -97,8 +101,9 @@ cluster_result <- build_cluster_network(
   survey_long,
   meta_df,
   topic_questions,
-  edge_percentile = 0.8,
+  edge_percentile = 0.6,
   resolution = 1,
+  algorithm = "leiden",
   seed = 20260511
 )
 

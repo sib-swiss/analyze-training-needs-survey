@@ -19,10 +19,10 @@ execute:
   echo: false
   warning: false
   message: false
-abstract: | 
-  Bioinformatics training demands are highly heterogeneous, making it challenging to design programs that meet diverse needs, particularly alongside emerging technologies like generative AI. To address this, we used a combination of a Likert-type survey with a network-based clustering framework to understand respondent heterogeneity. With this approach, we analyzed the 2026 SIB Swiss Institute of Bioinformatics training needs survey (n=260, March–April 2026) to evaluate potential course topics, participation barriers, format preferences, and demographic variables. A correlation network was constructed from course-topic ratings, and Louvain community detection was applied to group respondents into distinct learner profiles based on shared preferences.
+abstract: |
+  Bioinformatics training providers serve highly heterogeneous audiences, an ongoing challenge sharpened by fast-evolving technologies like generative AI. We present a combination of survey design with network-based clustering for identifying learner profiles. Respondents are represented as nodes in a correlation network built from Likert-type topic ratings, and community detection groups them into profiles that share training needs, independent of demographic characteristics. The clustering parameters were chosen based on resampling stability, and we demonstrate the method on the 2026 SIB Swiss Institute of Bioinformatics (SIB) training needs survey (n=260, March–April 2026), covering course topics, participation barriers, and format preferences.
 
-  Across all respondents, skills in AI/LLM were in highest demand, with four AI-related topics ranking within the top six overall priorities, alongside reproducible data practices and computational methods. Regarding course delivery, respondents favored interactive and multi-day formats, whereas AI-assisted learning was unexpectedly the least preferred. Rather than relying solely on traditional demographic stratification, network analysis successfully identified four distinct, interpretable learner profiles: AI and data, infectious disease genomics, functional genomics, and biochemistry, imaging & AI. Each profile showed specific topic priorities, format preferences, and learning barriers. Ultimately, these findings highlight a strong demand for AI and reproducibility skills combined with a preference for human interaction during training. Integrating network-derived learner profiles into curriculum design offers an actionable framework to optimize topic selection, tailor delivery formats, and mitigate learning barriers.
+  We identified four thematically distinct, interpretable learner profiles — AI and data, infectious disease genomics, functional genomics, and biochemistry, imaging & AI — each with specific topic priorities, barriers, and format preferences. Across all profiles, AI/LLM skills and reproducible data practices were in high demand, whereas AI-assisted learning was, unexpectedly, the least preferred format, pointing to a preference for human-led instruction even where AI training itself is wanted. Because the protocol depends only on a shared Likert scale rather than any specific topic set, it is directly reusable for other training-needs assessments, and we provide the full, tested implementation to support this reuse. Integrating network-derived learner profiles into curriculum design offers training providers an actionable framework to optimize topic selection, tailor delivery formats, and mitigate participation barriers.
 
 ---
 
@@ -140,7 +140,33 @@ sib_course_values <- c(
   "More than a year ago",
   "Within the last year"
 )
+
+cluster_title_df <- data.frame(
+  cluster = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"),
+  profile = c(
+    "AI and Data",
+    "Infectious Disease Genomics",
+    "Functional Genomics",
+    "Biochemistry, Imaging & AI"
+  )
+)
+
+cluster_title_map <- setNames(
+  cluster_title_df$profile,
+  cluster_title_df$cluster
+)
 ```
+
+**Biographical note:** the authors are members of the SIB Training group, that provides training to ensure that life scientists make the best of the latest advances in computational biology. 
+
+**Key points:**
+1.	We present a validated, openly available network-clustering method for identifying learner profiles from training-needs survey data.
+2.	Applied to the 2026 SIB training needs survey, the method identified four thematically distinct, reproducible learner profiles, capturing training-need heterogeneity that demographics miss.
+3.	AI/LLM skills are the top training gap across all profiles, alongside strong demand for FAIR/reproducible data practices — yet respondents prefer human-led formats over AI-assisted learning.
+4.	Curricula should be tailored to learner profiles rather than demographics or aggregate topic rankings, which each hide profile-specific needs.
+
+**Keywords:** network analysis; community detection; training needs assessment; bioinformatics education; survey methodology; generative AI
+
 
 ## Introduction
 
@@ -149,8 +175,6 @@ The rapid and continuous evolution of high-throughput experimental technologies,
 It is a continuous challenge to match the training needs of such a diverse audience. A frequently used method to understand such needs are training needs surveys [e.g. @attwood_global_2019; @sangeda_baseline_2021; @rocha_past_2022; @drew_revisiting_2023; @velozo_mapping_2024;@geest_community_2026]. These previous training needs surveys have analyzed various dimensions such as course topics, format, and logistics independently or sliced responses using classical demographic categories like career stage or geographic region. While informative, such an approach assumes that individuals within a demographic sub-group are homogeneous. However, demographic characteristics like career stage, region or sector do not necessarily explain common training needs; a post-doctoral researcher likely shares more training needs with a research technician in industry who works with similar data, than with a post-doctoral researcher working in a different domain. 
 
 Clustering of survey responses can be highly valuable for understanding such respondent heterogeneity. The approach was already introduced in the eighties for market segmentation [@punj_cluster_1983], and currently finds a wide range of applications [@hooghe_comparative_2016; @cheng_measuring_2024; @hyde_electronic_2019;@wenger_analysing_2024;@chung_are_2020]. For our case of bioinformatics training needs, identifying clusters can identify survey respondents with similar needs. Therefore, it can help training providers design curricula that are tailored to the specific needs of these sub-groups, rather than relying on broad demographic categories.
-
-<!-- Training needs can be evaluated based on three dimensions: course topics, format, and logistics. The course topics address educational needs, while format involves alignment to preferences regarding learning formats (e.g., intensive block courses, problem-based learning, self-paced e-learning). Logistics involves mitigating systemic barriers to attendance, including geographical distance and financial restrictions. -->
 
 In recent years, the fast growth of Artificial Intelligence (AI) and Large Language Models (LLMs) has transformed both the bioinformatics landscape and the nature of computational training itself [@wen_bin_goh_rethinking_2026; @ruan_large_2026]. Various generative AI tools have shifted how researchers write code [@jiang_survey_2026], automate workflows and retrieve data [@sima_potential_2023]. LLM and generative AI are heavily used by scientists [@daepp_ai_2026], and they are frequently used for education [@bewersdorff_taking_2025; @wang_reimagining_2026], both in the classroom and for self-directed learning [@esiyok_acceptance_2025; @wu_unlocking_2024]. To understand the impact of AI on training needs, it is therefore important to identify what kind of AI-related topics are required by scientists. This can help training providers design courses that address the specific needs, and to ensure that AI-related topics are integrated into the curriculum in a way that is relevant and useful for all learners.  
 
@@ -166,21 +190,23 @@ The SIB training needs survey was designed to collect information using mostly m
 * Perceived participation barriers: Participation barriers like course fees, travel distance, timing constraints, and prerequisite alignment were quantified using an ordinal scale ranging from 'No barrier' to 'Critical barrier'. 
 * Preferred learning formats: Delivery formats like webinars, bring your own data, problem-based learning, multi-day intensive courses, self-paced e-learning, and AI-assisted learning were quantified using an ordinal scale ranging from 'Strongly dislike' to 'Strongly like'.
 
-Demographic data were also collected to characterize the respondent pool: career stage, geographic demographics (working country and Swiss canton), organization type (Academia, Healthcare, Industry, Non-profit), and historical interaction (time elapsed since attending their last SIB training course).
+Demographic data were also collected through multiple-choice questions to characterize the respondent pool: career stage, geographic demographics (working country and Swiss canton), organization type (Academia, Healthcare, Industry, Non-profit), and historical interaction (time elapsed since attending their last SIB training course).
 
 The survey was distributed through the SIB training mailing list, the SIB network, various international communities (among which ELIXIR (https://elixir-europe.org/) and Life Science Trainers (https://lifescitrainers.org/)) and social media. The survey was open for responses for a period of 6 weeks, between March 17th and April 30th 2026, and participation was voluntary and anonymous.
 
 ### Data preprocessing and missing value handling
 
-For the questions on training needs, respondents were explicitly permitted to skip topics that were not relevant to their work. Consequently, non-responses within the training needs questions were treated as meaningful omissions, i.e. 'not relevant'. To preserve the complete respondent pool and avoid the biases, missing values were therefore imputed with the minimum ordinal score of 1, corresponding to a *"Not needed"* response. All data analysis steps were implemented in R ([@rcoreteam_r_2026]; version 4.3.1) using the packages dplyr [@wickham_dplyr_2026] for data manipulation and ggplot2 [@wickham_ggplot2_2016] for visualization. All code can be found on Zenodo (https://zenodo.org/records/20446763). 
+For the questions on training needs, respondents were explicitly permitted to skip topics that were not relevant to their work. Consequently, non-responses within the training needs questions were treated as meaningful omissions, i.e. 'not relevant'. To preserve the complete respondent pool and avoid the biases, missing values were therefore imputed with the minimum ordinal score of 1, corresponding to a *"Not needed"* response. All data analysis steps were implemented in R ([@rcoreteam_r_2026]; version 4.3.1) using the packages dplyr [@wickham_dplyr_2026] for data manipulation and ggplot2 [@wickham_ggplot2_2016] for visualization. All code can be found on GitHub (https://github.com/sib-swiss/analyze-training-needs-survey/) and Zenodo (https://zenodo.org/records/20446763). 
 
 ### Graph-based network and community detection
 
-To define clusters of participants without relying on pre-existing demographic labels, we modeled the survey respondents using network analysis (@fig-cluster-workflow). In this network, each individual respondent is represented as a single node. For every possible pair of respondents, we calculated the Pearson correlation coefficient based on their responses across all training sub-topics. This score reflects the similarity in their training needs. These similarity scores form the connections (edges) between nodes, where the weight of the connection represents the strength of the positive correlation between those two responses. To eliminate weak background noise and prevent the network from becoming too dense, we filtered based on a threshold of the Pearson correlation coefficient. We calculated the 80th percentile of all positive correlations (corresponding to a correlation coefficient of 0.32) across the dataset and pruned any connection falling below this threshold. Unsupervised clustering of the filtered respondent network was performed using the Louvain community detection algorithm [@blondel_fast_2008] using a resolution of 1. The network analysis and community detection was conducted using the igraph package in R [@csardi_igraph_2026]. 
+To define clusters of participants without relying on pre-existing demographic labels, we modeled the survey respondents using network analysis (@fig-cluster-workflow). In this network, each individual respondent is represented as a single node. For every possible pair of respondents, we calculated the Pearson correlation coefficient based on their responses across all training sub-topics. This score reflects the similarity in their training needs. These similarity scores form the connections (edges) between nodes, where the weight of the connection represents the strength of the positive correlation between those two responses. To eliminate weak background noise and prevent the network from becoming too dense, we filtered based on a threshold of the Pearson correlation coefficient, pruning any connection falling below it. Unsupervised clustering of the filtered respondent network was then performed using the Leiden community detection algorithm [@traag_louvain_2019]. The network analysis and community detection was conducted using the igraph package in R [@csardi_igraph_2026].
+
+We evaluated stability by resampling 80% of respondents over 100 iterations, reran the full network-construction and clustering procedure on each subsample, and compared the resulting partition to the full-data clustering (restricted to the subsampled respondents) using the Adjusted Rand Index (ARI), which ranges from 0 (chance-level agreement) to 1 (identical partitions). We swept this stability score over a grid of edge-threshold percentiles (50th–90th) and resolutions (0.5–2), restricting the comparison to configurations yielding a comparable number of interpretable clusters (excluding clusters of 5 or fewer respondents). 
 
 ```{mermaid}
 %%| label: fig-cluster-workflow
-%%| fig-cap: "Graph-based clustering workflow for identifying learner profiles. Respondents are modeled as nodes in a network, with edges representing pairwise correlation of training needs. Louvain community detection is applied to identify clusters of respondents with similar training needs, which are subsequently characterized as distinct learner profiles."
+%%| fig-cap: "Graph-based clustering workflow for identifying learner profiles. Respondents are modeled as nodes in a network, with edges representing pairwise correlation of training needs. Leiden community detection is applied to identify clusters of respondents with similar training needs, which are subsequently characterized as distinct learner profiles."
 
 graph TD
     %% Define Styles
@@ -191,8 +217,8 @@ graph TD
     %% Nodes
     A[SURVEY RESPONDENT POOL]
     B(Pearson Pairwise Correlation)
-    C[PRUNED RESPONDENT NETWORK <br> r > 0.32]
-    D(Louvain Community Detection)
+    C[PRUNED RESPONDENT NETWORK <br> r > 0.17]
+    D(Leiden Community Detection)
     
     E[Cluster 1 <br> AI & Data]
     F[Cluster 2 <br> Infectious diseases genomics]
@@ -216,7 +242,7 @@ graph TD
 
 ## Results
 
-### Demographics and overall responses
+### Survey data
 
 A total of 260 responses were gathered, of which 175 (67.3%) were from Switzerland (@fig-demographics A). Most respondents from Switzerland were spread across six cantons that all have a large university (@fig-demographics B). Most respondents were working in academia (n = 215, 82.7%; @fig-demographics C). The career stage was distributed across academic professions (@fig-demographics D), with a majority of PhD candidates (n = 77, 26.6%) and senior scientists/PIs (n = 67, 25.7%).
 
@@ -383,7 +409,59 @@ ggsave(
 
 ### Graph-based clustering of course preference responses
 
-To group respondents based on their training needs, we constructed a network where nodes represent respondents and edges represent the similarity of their training preferences. Initially, we identified five clusters (@fig-course-cluster-network), of which one cluster (Cluster 5) consisted of a single respondent who indicated 'absolutely essential' for all course topics, which was considered as an outlier and therefore removed from the analysis.  
+To group respondents based on their training needs, we constructed a network where nodes represent respondents and edges represent the similarity of their training preferences. 
+We chose the clustering configuration by sweeping edge-threshold percentile (50th–90th) and resolution (0.5–2). To assess how sensitive this partition is to which respondents happen to be surveyed, we repeated the clustering procedure on 100 random 80% subsamples of respondents and compared each resulting partition to the full-data clustering using the Adjusted Rand Index (ARI; @fig-parameter-sweep). The highest agreement was found for the combination 60th percentile / resolution 1 (median ARI = 0.93, range 0.92–0.93), close to what would indicate a fully reproducible partition. Recovery was similarly high and consistent across learner profiles (@tbl-cluster-stability).
+
+```{r}
+#| label: fig-parameter-sweep
+#| fig-cap: "Resampling stability (median Adjusted Rand Index across 100 80%-subsample iterations) across a grid of edge-threshold percentiles and resolutions, using Leiden community detection. Numbers show the count of clusters retaining more than 5 respondents at each setting; grey tiles indicate settings where the partition collapsed to a single cluster in some resampling iterations, making the Adjusted Rand Index undefined."
+#| fig-height: 4.5
+
+sweep_result <- suppressWarnings(sweep_cluster_parameters(
+  survey_long,
+  meta_df,
+  all_topic_questions,
+  edge_percentiles = c(0.5, 0.6, 0.7, 0.8, 0.9),
+  resolutions = c(0.5, 0.75, 1, 1.25, 1.5, 2),
+  algorithms = "leiden",
+  min_cluster_size = 5,
+  subsample_frac = 0.8,
+  n_iterations = 100,
+  seed = 20260511
+))
+
+viridis_hex <- scales::viridis_pal()(100)
+get_label_col <- function(ari) {
+  idx <- pmax(1, pmin(100, round(ari * 99) + 1))
+  ifelse(is.na(ari), "grey30", label_colour_for(viridis_hex[idx]))
+}
+
+p <- sweep_result |>
+  dplyr::mutate(
+    resolution_f = factor(resolution),
+    percentile_f = factor(edge_percentile, levels = rev(sort(unique(edge_percentile)))),
+    label_col = get_label_col(median_ari)
+  ) |>
+  ggplot2::ggplot(ggplot2::aes(x = resolution_f, y = percentile_f, fill = median_ari)) +
+  ggplot2::geom_tile(colour = "white", linewidth = 0.6) +
+  ggplot2::geom_text(ggplot2::aes(label = n_clusters_valid, colour = label_col), size = 5) +
+  ggplot2::scale_colour_identity() +
+  ggplot2::scale_fill_viridis_c(limits = c(0, 1), na.value = "grey85", name = "Median ARI\n(stability)") +
+  ggplot2::labs(x = "Resolution", y = "Edge-threshold percentile") +
+  ggplot2::theme_minimal(base_size = 14) +
+  ggplot2::theme(panel.grid = ggplot2::element_blank())
+
+print(p)
+
+ggsave(
+  here::here("manuscript", "figures", "main_text", "fig6.jpg"),
+  p,
+  width = 5.5,
+  height = 4.5,
+  dpi = 600
+)
+```
+
 
 ```{r}
 #| label: cluster-course-preferences
@@ -393,8 +471,9 @@ cluster_result <- build_cluster_network(
   survey_long,
   meta_df,
   all_topic_questions,
-  edge_percentile = 0.8,
+  edge_percentile = 0.6,
   resolution = 1,
+  algorithm = "leiden",
   seed = 20260511
 )
 
@@ -405,65 +484,43 @@ cluster_assignments <- cluster_result$cluster_assignments
 ```
 
 ```{r}
-#| label: fig-course-cluster-network
-#| fig-cap: "Respondent network from course-topic preference correlations. Edge widths indicate stronger positive correlation; colors indicate Louvain communities. Cluster 5 is an outlier cluster with a single respondent and was removed from further analysis."
-#| fig-height: 5
+#| label: cluster-stability
 
-plot_network <- plot_cluster_network(g, community)
-plot_network()
+stability_result <- cluster_stability(
+  survey_long,
+  meta_df,
+  all_topic_questions,
+  cluster_assignments,
+  edge_percentile = 0.6,
+  resolution = 1,
+  algorithm = "leiden",
+  subsample_frac = 0.8,
+  n_iterations = 100,
+  seed = 20260511
+)
 ```
 
 ```{r}
-#| label: fig-course-cluster-network-pdf
-#| output: false
-jpeg(here::here("manuscript", "figures", "main_text", "fig6.jpg"), width = 7, height = 5, units = "in", res = 600)
-plot_network()
-dev.off()
-```
+#| label: tbl-cluster-stability
+#| tbl-cap: "Per-cluster recovery under resampling: for each learner-profile cluster, the fraction of its (sampled) members assigned to a single most-common cluster across 100 80%-subsample iterations."
 
-The resulting clusters were similar in size and displayed varying levels of internal similarity of responses. To evaluate this, we calculated the edge density (the proportion of actual connections out of all possible links)for each cluster (@tbl-cluster-interconnectedness), showing  that Cluster 1 exhibits the highest edge density. Therefore, respondents within Cluster 1 have more similar training needs compared to the other clusters.
-
-```{r}
-#| label: tbl-cluster-interconnectedness
-#| tbl-cap: "Within-cluster interconnectedness scores. Nodes: the number of nodes (= respondents) in the cluster; internal edges: number of edges within a cluster; possible edges: all possible edges given the number of nodes; edge density: internal edges/possible edges."
-
-cluster_interconnectedness_tbl <- cluster_interconnectedness(g, community)
-
-cluster_title_df <- data.frame(
-  cluster = c("Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"),
-  profile = c(
-    "AI and Data",
-    "Infectious Disease Genomics",
-    "Functional Genomics",
-    "Biochemistry, Imaging & AI"
-  )
-)
-cluster_title_map <- setNames(
-  cluster_title_df$profile,
-  cluster_title_df$cluster
-)
-
-
-cluster_interconnectedness_tbl |>
-  dplyr::filter(cluster != "Cluster 5") |>
-  dplyr::left_join(cluster_title_df, by = "cluster") |>
-  dplyr::arrange(cluster) |>
-  dplyr::mutate(edge_density = round(edge_density, 3)) |>
-  # rearrange and rename columns for display
-  dplyr::select(
-    cluster,
-    profile,
-    respondents = n_nodes,
-    `internal edges` = internal_edges,
-    `possible edges` = possible_edges,
-    `edge density` = edge_density
+stability_result$purity |>
+  dplyr::filter(cluster_ref %in% paste("Cluster", 1:4)) |>
+  dplyr::group_by(cluster_ref) |>
+  dplyr::summarise(
+    `median recovery` = round(median(purity), 3),
+    `min recovery` = round(min(purity), 3),
+    `max recovery` = round(max(purity), 3),
+    .groups = "drop"
   ) |>
+  dplyr::rename(cluster = cluster_ref) |>
+  dplyr::select(cluster, `median recovery`, `min recovery`, `max recovery`) |>
   knitr::kable()
 ```
 
-### Learner profiles
+### Clusters and learner profiles
 
-Throughout this section, we refer to a *cluster* as the group of respondents identified via community detection, and to a *learner profile* as the qualitative characterization of a cluster's shared training needs, barriers, format preferences and demographics. The four resulting clusters were characterized by distinct training needs, shown by their top 10 of most liked topics (@fig-topics-by-cluster). This clearly shows that responses within each cluster have distinct preferences that are not visible when analyzing the entire respondent pool (@fig-likert-preferences). Based on these distinct needs, we defined four learner profiles: Cluster 1 (@fig-topics-by-cluster A) is characterized by an interest in best practices in AI and data, including application of LLMs and reproducible and FAIR data, and is hereafter referred to as the 'AI and data' profile. Cluster 2 (@fig-topics-by-cluster B) is characterized by infectious disease topics and possibly ecology, with an interest in phylogenetics, pathogen genomics and epidemiology, and is referred to as the 'Infectious disease genomics' profile. Cluster 3 (@fig-topics-by-cluster C) is characterized by an interest in functional genomics topics, with an interest in transcriptomics and epigenetics, and is referred to as the 'Functional genomics' profile. Cluster 4 (@fig-topics-by-cluster D) is characterized by training needs on AI, biochemistry and imaging, with an interest in proteomics, mass spectrometry and imaging and omics data integration, and is referred to as the 'Biochemistry, imaging & AI' profile. All clusters have topics related to AI in their top 10, indicating that AI is a cross-cutting theme across all learner profiles.
+The four resulting clusters were characterized by distinct training needs, shown by their top 10 of most liked topics (@fig-topics-by-cluster). This clearly shows that responses within each cluster have distinct preferences that are not visible when analyzing the entire respondent pool (@fig-likert-preferences). Based on these distinct needs, we defined four learner profiles: Cluster 1 (@fig-topics-by-cluster A) is characterized by an interest in using AI and best practices for data, including application of LLMs and reproducible and FAIR data, and is hereafter referred to as the 'AI and data' profile. Cluster 2 (@fig-topics-by-cluster B) is characterized by infectious disease topics and possibly ecology, indicating an interest in phylogenetics, pathogen genomics and epidemiology, and is referred to as the 'Infectious disease genomics' profile. Cluster 3 (@fig-topics-by-cluster C) is characterized by an interest in functional genomics topics, indicating an interest in transcriptomics and epigenetics, and is referred to as the 'Functional genomics' profile. Cluster 4 (@fig-topics-by-cluster D) is characterized by training needs on biochemistry, imaging and AI, indicating an interest in proteomics, mass spectrometry and imaging and omics data integration, and is referred to as the 'Biochemistry, imaging & AI' profile. All clusters have topics related to AI in their top 10, indicating that AI is a cross-cutting theme across all learner profiles.
 
 ```{r}
 #| label: cluster-filtering
@@ -531,7 +588,7 @@ ggsave(
 )
 ```
 
-These learner profiles can be further characterized based on demographic characteristics (@fig-cluster-pie-career; Supplementary Figure 1-3), structural barriers to participation (Supplementary Figure 4), and preferred learning formats (Supplementary Figure 5). Such analyses can help training providers design targeted curricula that address the specific needs of each profile. For example, the 'AI and data' profile (Cluster 1) has a higher proportion of early-career scientists (PhD candidates and postdoctoral researchers; @fig-cluster-pie-career) and a higher proportion of respondents from academia (Supplementary Figure X), while the 'Biochemistry, imaging & AI' profile (Cluster 4) has a higher proportion of senior scientists and respondents from industry. These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each learner profile.
+These learner profiles can be further characterized based on demographic characteristics (@fig-cluster-pie-career; Supplementary Figure 1-3), barriers to participation (Supplementary Figure 4), and preferred learning formats (Supplementary Figure 5). Such analyses can help training providers design targeted curricula that address the specific needs of each profile. For example, the 'AI and data' profile (Cluster 1) has the highest proportion of early-career scientists (PhD candidates and postdoctoral researchers; @fig-cluster-pie-career; 51%) and the highest proportion of respondents from Switzerland (Supplementary Figure 2; 78%), while the 'Functional genomics' profile (Cluster 3) has the highest proportion of senior scientists (32%; @fig-cluster-pie-career) and respondents from outside of Switzerland (38%). These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each learner profile.
 
 ```{r}
 #| label: cluster-pie-helpers
@@ -716,9 +773,17 @@ ggsave(
 
 ## Discussion
 
-The results of the SIB training survey provide a snapshot of the bioinformatics training needs of scientists in spring 2026, a period in which generative AI and large language models (LLMs) became increasingly relevant. The survey design and analysis framework is unique within the context of bioinformatics education, and provides a comprehensive approach to understanding training needs, participation barriers, and preferred learning formats. Here, we discuss the overall survey outcomes that can be used for curriculum design on the short term, and the advantages of the analysis approach that can serve as a blueprint for future surveys on training needs.
+This paper serves two purposes: it demonstrates a network-based clustering protocol for characterizing heterogeneous training needs from survey data, and it reports a snapshot of bioinformatics training needs in spring 2026, a period in which generative AI and large language models (LLMs) became increasingly relevant. In this section, we first discuss the methodological implications of our approach, and then discuss the survey outcomes in the context of bioinformatics training.
 
-### Overall survey outcomes
+### Cluster-based analysis for survey data
+
+The problems that can be solved with bioinformatics are very diverse, and professionals solving these problems are highly heterogeneous. Therefore, analyzing the survey as a homogeneous group, or slicing the group by demographic indicators only partly captures the diversity of training needs. This issue is not specific to bioinformatics training, creating clusters of respondents is an overall valuable approach for understanding survey data, for example in citizenship norms [@hooghe_comparative_2016], health literacy [@cheng_measuring_2024; @hyde_electronic_2019], bullying [@chung_are_2020] or company training [@wenger_analysing_2024].
+
+Several of these applications rely on latent class analysis [@wenger_analysing_2024; @hooghe_comparative_2016; @chung_are_2020], a model-based alternative that assumes respondents are drawn from a mixture of latent groups, each characterized by its own probability of endorsing every item [@weller_latent_2020]. Unlike latent class analysis, our approach does not require responses to different items to be conditionally independent once class membership is known — that is, it does not assume that knowing a respondent's class fully explains any correlation between their answers to different items. This assumption is difficult to justify for our type of survey: the 33 course-topic items are not a flat, arbitrary list, but are grouped by design into 5 thematic domains, each spanning several related sub-topics — within "Computational methods and AI" alone, "AI-assisted coding and analysis", "Advanced AI techniques", and "Using large language models (LLM) for biomedical knowledge extraction" all appear together. Items sharing a domain correlate simply because they share that domain, independent of whichever latent class a respondent might be assigned to: all four learner profiles we identified had AI-related topics among their top 10 most-needed, a pattern consistent with a general interest in AI that cuts across profiles rather than being fully explained by profile membership, which is the kind of residual item correlation that the assumption of local independence rules out. Our approach also avoids the chance of overfitting by using a latent class model: with four classes and 33 five-level items, estimating a full response-probability profile per item and class would require an estimated 531 free parameters (4 classes × 33 items × 4 free category probabilities, plus 3 class-proportion parameters), exceeding our sample of 260 respondents and risking unstable or non-identifiable class solutions. Network-based clustering avoids this altogether by reducing each respondent's 33-item profile to a single pairwise similarity score, so the number of parameters needed to define the clustering does not grow with the number of items. 
+
+Our presented combination of survey with Likert-type questions and multiple-choice demographic questions with network-based clustering analysis provides an effective method to understand heterogeneous training needs. Similarly designed future training-needs surveys would run in similar limitations on the assumptions of latent class analysis, making network-based clustering a  broadly appropriate method for analysis. The clustering approach itself does not depend on the specific topics, wording, or number of domains used in our survey data — it only requires a set of Likert-type items sharing a common scale, asked of every respondent. This makes it directly reusable for other training-needs assessments. The accompanying implementation exposes the survey design, preprocessing, and clustering steps as parameterized, reusable functions, so the protocol can be applied to a new dataset simply by supplying a new response export and question metadata file.
+
+### Survey outcomes
 
 The majority of respondents were working in Switzerland as an academic researcher, likely because the survey was primarily advertised through the SIB training mailing list and other academic channels and networks within Switzerland. This outcome aligns well with the aims of the survey, as SIB training is primarily intended for academic researchers working in Switzerland. Nevertheless, we think that the survey results can be used for similar training curricula in other countries. Here, we discuss the overall survey outcomes along the three dimensions of training needs, participation barriers and learning formats.
 
@@ -732,22 +797,20 @@ While applying such outcomes to actual curriculum design, it is important to not
 
 #### Participation barriers
 
-For most barriers, we saw that the majority of respondents did not perceive them as a barrier or as small barrier to their participation in SIB courses. Overall, the largest barriers were distance and course fees, which were a large or critical barrier for respectively 33% and 25% of the respondents. Currently, approximately 50% of the SIB courses is provided in-person, and most other courses in-person take place in Lausanne, Geneva, Basel, Bern and Zurich. The other courses are online, and logistical barriers should not be significant, given that barriers related to time-zone differences were perceived as minimal. To reduce the distance barrier for Swiss participants, there could be more incentive to organise the same course in different cities and possibly provide more online options. However, seeking a balance between in-person and online courses remains important, since online education can reduce student statisfaction [@ebner_learning_2019] and learning effectiveness [@meng_systematic_2024]. Regarding fees, SIB charges fall within a similar range compared to other European curricula targeting the same audience (e.g., EMBL-EBI courses, VIB training), although course fees do not cover all costs. Consequently, there is limited flexibility to further reduce this barrier without jeopardizing financial sustainability.
+For most barriers, the majority of respondents did not perceive them as a barrier, or only a small one, to participation. Overall, the largest barriers were distance and course fees, reported as a large or critical barrier by 33% and 25% of respondents respectively, whereas barriers related to time-zone differences were perceived as minimal. Identifying which factors are limiting, and for which learner profile, is exactly the kind of actionable, curriculum-relevant signal the clustering protocol is intended to surface, rather than a single aggregate statement that "distance is a barrier" for the respondent pool as a whole. Any resulting mitigation nevertheless has to weigh trade-offs the survey itself does not capture: shifting more courses online, for instance, reduces a distance barrier but can come at some cost to student satisfaction [@ebner_learning_2019] and learning effectiveness [@meng_systematic_2024].
 
 #### The need for human interaction
 
 Respondents particularly liked short interactive live course formats, and combinations of both live and self-paced learning (blended). This shows the need of the human aspect in courses, such as the interaction between trainers and learners, and between learners themselves. Despite it being suggested to improve educational outcomes [@dong_generative_2026], there was a tendency towards dislike of AI-assisted learning formats, which is interesting given the high demand for training on AI and LLMs. This indicates that while respondents are interested in learning about AI, they prefer to learn in a more traditional format, with human interaction and guidance. This could be explained by overall trust issues regarding AI usage in education [@lelescu_exploring_2025]. We do not know how respondents interpreted what 'AI-assisted learning formats' means. It is therefore important in next steps to understand how learners would appreciate this format, and what their expectations are. 
 
-### Learner profiles characterize heterogeneous training needs
+#### Learner profiles characterize heterogeneous training bioinformatics needs
 
-The problems that can be solved with bioinformatics are very diverse, and professionals solving these problems are highly heterogeneous. Therefore, analyzing the survey as a homogeneous group, or slicing the group by demographic indicators only partly captures the diversity of training needs. This issue is not specific to bioinformatics training, creating clusters of respondents is an overall valuable approach for understanding survey data, for example in citizenship norms [@hooghe_comparative_2016], health literacy [@cheng_measuring_2024; @hyde_electronic_2019], bullying [@chung_are_2020] or company training [@wenger_analysing_2024]. 
+By using graph-based clustering of the answers on training topics, we got a much more granular view, revealing insights that would otherwise remain hidden. For example, the topic "Using large language models (LLM) for biomedical knowledge extraction" was ranked 2nd most needed by the complete pool of respondents. Within the clusters, though, it ranked well inside the top 10 for three of the four learner profiles, but not for the 'Infectious disease genomics' profile (Cluster 2). This shows that organising a course on this topic would serve the primary needs of most learner profiles, but only partly those of Cluster 2's respondents.
 
-By using graph-based clustering of the answers on training topics, we got a much more granular view, revealing insights that would otherwise remain hidden. For example, the topic "AI-assisted coding and analysis" was ranked as most needed by the complete pool of respondents. Within the clusters, though, it was the most needed topic in the 'AI and data' profile (Cluster 1), but not even in the top 10 for the 'Functional genomics' profile (Cluster 3). This shows that organising a course on this topic would serve the primary needs of the 'AI and data' profile, but only partly those of respondents in the other learner profiles.
+The reverse also occurs. The topic "Phylogenetics data analysis" ranked 15th among the complete pool of respondents, suggesting a moderate to low priority. Within the 'Infectious disease genomics' profile (Cluster 2), however, it was the single most needed topic. Since the number of respondents was fairly evenly distributed across clusters, each learner profile deserves similar attention when designing a curriculum that matches these heterogeneous training needs. Organising courses around profile-specific topics, rather than relying on the aggregate ranking alone, would therefore better serve substantial groups of respondents.
 
-The reverse also occurs. The topic "Phylogenetics data analysis" ranked 15th among the complete pool of respondents, suggesting a moderate to low priority. Within the 'Infectious disease genomics' profile (Cluster 2), however, it was the single most needed topic. Since respondents were fairly evenly distributed across clusters, each learner profile deserves similar attention when designing a curriculum that matches these heterogeneous training needs. Organising courses around profile-specific topics, rather than relying on the aggregate ranking alone, would therefore better serve substantial groups of respondents.
-
-The learner profiles also enable a more targeted approach to address barriers to participation, learning formats and demographics. For example, the 'AI and data' profile (Cluster 1) has a higher proportion of early-career scientists and a higher proportion of respondents from Swiss universities, while the 'Biochemistry, imaging & AI' profile (Cluster 4) has a higher proportion of senior scientists and respondents from industry. These differences in demographics can inform the design of training programs that are tailored to the specific needs and preferences of each learner profile.
+The learner profiles also enable a more targeted approach to address barriers to participation, learning formats and demographics. For example, a large proportion of respondents in the 'Functional genomics' profile (Cluster 3) indicated that distance to the course location is a barrier, and only a small proportion indicated that course fees are a barrier. On the contrary, a large proportion of respondents in the 'Infectious disease genomics' profile (Cluster 2) indicated that course fees are a barrier, and distance was the second most frequently indicated barrier. For curriculum design, this could suggest to focus on paid online multi-day courses for the 'Functional genomics' profile, and free webinars for the 'Infectious disease genomics' profile. This shows that these differences in barriers, preferred formats and demographics can inform the design of training programs that are tailored to the specific needs and preferences of each learner profile.
 
 ## Conclusion
 
-This study demonstrates the utility of network analysis and community detection for understanding training needs and translating them into curriculum design. By clustering respondents based on their shared needs rather than demographics, we identified four meaningful learner profiles. Overall and within those profiles, there is a clear need for training on AI-related topics. The dislike of AI-assisted learning formats, and preference for synchronous interactive formats shows a need for human interaction during training, and raises questions on trust and liability issues while using AI in the classroom. Tailoring training curricula to these empirically derived learner profiles enables training providers to effectively address topical needs, participation barriers and teaching formats in order to ensure educational effectiveness in a rapidly evolving scientific landscape.
+This study presents a network-based clustering protocol for characterizing heterogeneous training needs using Likert-type survey questions in combination with multiple-choice demographic questions, and demonstrates its use on the 2026 SIB training needs survey. By clustering respondents based on their shared needs rather than demographics, we identified four meaningful learner profiles, each with distinct topic priorities, participation barriers, and format preferences. Applied to this dataset, the analysis indicated a clear need for training on AI-related topics alongside a preference for human-led, interactive formats over AI-assisted learning, raising questions about trust and the role of human interaction in AI-era training. Because the protocol depends only on a shared Likert scale across survey items rather than on the specific topics or wording used here, we expect it to generalize to other training-needs assessments. The full pipeline is openly available to support such reuse, alongside the parameter-sensitivity and algorithm-choice considerations discussed above.

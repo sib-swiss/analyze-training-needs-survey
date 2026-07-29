@@ -1,5 +1,6 @@
 # Build a respondent-similarity network from long-format Likert responses to
-# a set of topic questions, and detect communities with Louvain clustering.
+# a set of topic questions, and detect communities via Leiden or Louvain
+# clustering.
 #
 # survey_long     : long-format survey data (one row per respondent x sub_question)
 # meta_df         : question metadata (main_question, question_meta_type, scale)
@@ -7,8 +8,12 @@
 # edge_percentile : quantile of positive pairwise correlations used as the
 #                   minimum edge weight, to prune the network to its
 #                   strongest connections (default: 80th percentile)
-# resolution      : Louvain resolution parameter; higher values yield more,
-#                   smaller communities
+# resolution      : resolution parameter passed to the community-detection
+#                   algorithm; higher values yield more, smaller communities
+# algorithm       : "leiden" (default) or "louvain". Leiden optimizes the same
+#                   modularity objective but guarantees internally connected
+#                   communities, which Louvain does not; Louvain remains
+#                   available for users who want to compare the two.
 # seed            : random seed for the community-detection step
 #
 # Returns a list with the igraph object, the detected community structure,
@@ -20,8 +25,10 @@ build_cluster_network <- function(
   topic_questions,
   edge_percentile = 0.8,
   resolution = 1,
+  algorithm = c("leiden", "louvain"),
   seed = 20260511
 ) {
+  algorithm <- match.arg(algorithm)
   course_scale <- meta_df |>
     dplyr::filter(main_question %in% topic_questions) |>
     dplyr::pull(scale) |>
@@ -76,13 +83,22 @@ build_cluster_network <- function(
   # add respondent_id as vertex attribute for later merging with survey data
   igraph::V(g)$respondent_id <- course_matrix_tbl$respondent_id
 
-  # louvain community detection with edge weights and resolution parameter to control cluster granularity.
+  # community detection with edge weights and resolution parameter to control cluster granularity.
   set.seed(seed)
-  community <- igraph::cluster_louvain(
-    g,
-    weights = igraph::E(g)$weight,
-    resolution = resolution
-  )
+  community <- if (algorithm == "leiden") {
+    igraph::cluster_leiden(
+      g,
+      objective_function = "modularity",
+      weights = igraph::E(g)$weight,
+      resolution = resolution
+    )
+  } else {
+    igraph::cluster_louvain(
+      g,
+      weights = igraph::E(g)$weight,
+      resolution = resolution
+    )
+  }
 
   # create a tibble mapping respondent_id to cluster membership
   cluster_assignments <- tibble::tibble(
@@ -130,6 +146,172 @@ cluster_interconnectedness <- function(g, community) {
         mean_internal_weight = ifelse(internal_edges > 0, total_internal_weight / internal_edges, NA_real_)
       )
     })
+}
+
+# Resampling stability of the clustering: repeatedly subsample respondents
+# (without replacement), recluster each subsample from scratch with the same
+# parameters, and compare its cluster assignments to the reference (full-data)
+# clustering restricted to the same respondents. The same seed is reused for
+# community detection on every iteration, so subsampling is the only source
+# of variation being measured — Louvain's own run-to-run randomness is a
+# separate question from whether the profiles are stable to which
+# respondents happen to be included.
+#
+# Returns two tibbles:
+#   - ari: one global Adjusted Rand Index per iteration (1 = identical
+#     partitions; ~0 = agreement no better than chance) — an overall
+#     stability score for the full partition.
+#   - purity: for each reference cluster and iteration, the fraction of its
+#     (sampled) members that end up sharing a single most-common cluster
+#     label in the subsample's own clustering — which reference clusters
+#     are individually more or less reproducible than the global ARI alone
+#     would suggest.
+#
+# reference_assignments : cluster_assignments tibble from a build_cluster_network()
+#                          call on the full respondent pool
+# subsample_frac         : fraction of respondents kept per iteration
+# n_iterations           : number of resampling iterations
+cluster_stability <- function(
+  survey_long,
+  meta_df,
+  topic_questions,
+  reference_assignments,
+  edge_percentile = 0.8,
+  resolution = 1,
+  algorithm = c("leiden", "louvain"),
+  subsample_frac = 0.8,
+  n_iterations = 100,
+  seed = 20260511
+) {
+  algorithm <- match.arg(algorithm)
+  set.seed(seed)
+  all_ids <- reference_assignments$respondent_id
+  n_sample <- floor(subsample_frac * length(all_ids))
+
+  results <- purrr::map(seq_len(n_iterations), function(i) {
+    sampled_ids <- sample(all_ids, size = n_sample)
+
+    survey_long_sub <- survey_long |>
+      dplyr::filter(respondent_id %in% sampled_ids)
+
+    result_sub <- build_cluster_network(
+      survey_long_sub,
+      meta_df,
+      topic_questions,
+      edge_percentile = edge_percentile,
+      resolution = resolution,
+      algorithm = algorithm,
+      seed = seed
+    )
+
+    sub_assignments <- result_sub$cluster_assignments
+    ref_matched <- reference_assignments$cluster[
+      match(sub_assignments$respondent_id, reference_assignments$respondent_id)
+    ]
+
+    ari <- igraph::compare(
+      as.integer(ref_matched),
+      as.integer(sub_assignments$cluster),
+      method = "adjusted.rand"
+    )
+
+    purity <- tibble::tibble(
+      cluster_ref = ref_matched,
+      cluster_sub = sub_assignments$cluster
+    ) |>
+      dplyr::group_by(cluster_ref) |>
+      dplyr::summarise(
+        n = dplyr::n(),
+        purity = max(table(cluster_sub)) / dplyr::n(),
+        .groups = "drop"
+      ) |>
+      dplyr::mutate(iteration = i)
+
+    list(ari = ari, purity = purity)
+  })
+
+  list(
+    ari = tibble::tibble(
+      iteration = seq_len(n_iterations),
+      ari = vapply(results, \(r) r$ari, numeric(1))
+    ),
+    purity = purrr::map_dfr(results, "purity")
+  )
+}
+
+# Sweep edge_percentile x resolution (optionally x algorithm), scoring each
+# combination by resampling stability (median ARI, via cluster_stability()),
+# modularity, and the number of non-trivial clusters. Naively maximizing
+# stability alone is misleading — a single giant cluster is trivially
+# "stable" — so n_clusters_valid is reported alongside stability and should
+# be used to rule out degenerate solutions before picking a configuration.
+#
+# edge_percentiles, resolutions, algorithms : vectors of candidate values;
+#   every combination is evaluated
+# min_cluster_size                          : clusters at or below this size
+#   are excluded from n_clusters_valid (matches the > 5 threshold used
+#   elsewhere for "valid" clusters)
+sweep_cluster_parameters <- function(
+  survey_long,
+  meta_df,
+  topic_questions,
+  edge_percentiles,
+  resolutions,
+  algorithms = "leiden",
+  min_cluster_size = 5,
+  subsample_frac = 0.8,
+  n_iterations = 100,
+  seed = 20260511
+) {
+  grid <- tidyr::expand_grid(
+    edge_percentile = edge_percentiles,
+    resolution = resolutions,
+    algorithm = algorithms
+  )
+
+  purrr::pmap_dfr(grid, function(edge_percentile, resolution, algorithm) {
+    ref <- build_cluster_network(
+      survey_long,
+      meta_df,
+      topic_questions,
+      edge_percentile = edge_percentile,
+      resolution = resolution,
+      algorithm = algorithm,
+      seed = seed
+    )
+
+    sizes <- ref$cluster_assignments |> dplyr::count(cluster, name = "n")
+
+    modularity <- igraph::modularity(
+      ref$graph,
+      igraph::membership(ref$community),
+      weights = igraph::E(ref$graph)$weight
+    )
+
+    stab <- cluster_stability(
+      survey_long,
+      meta_df,
+      topic_questions,
+      ref$cluster_assignments,
+      edge_percentile = edge_percentile,
+      resolution = resolution,
+      algorithm = algorithm,
+      subsample_frac = subsample_frac,
+      n_iterations = n_iterations,
+      seed = seed
+    )
+
+    tibble::tibble(
+      edge_percentile = edge_percentile,
+      resolution = resolution,
+      algorithm = algorithm,
+      n_clusters_total = nrow(sizes),
+      n_clusters_valid = sum(sizes$n > min_cluster_size),
+      modularity = modularity,
+      median_ari = stats::median(stab$ari$ari),
+      min_ari = min(stab$ari$ari)
+    )
+  })
 }
 
 # Force-directed plot of the respondent network, coloured by Louvain
