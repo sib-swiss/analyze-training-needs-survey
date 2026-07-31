@@ -34,6 +34,30 @@ label_colour_for <- function(hex) {
 # split_values         : optional character vector to subset split_by values
 # counts               : if TRUE, use absolute counts on the x-axis instead of percentages
 # labels               : if TRUE, show the value inside each bar segment
+#' palette : name of a diverging RColorBrewer palette (default "RdBu"). Use a
+#'   different, colorblind-safe palette per question type to visually tell
+#'   plots of different Likert questions apart when combined in one figure.
+#'   Colorblind-safe diverging options in RColorBrewer: BrBG, PiYG, PRGn,
+#'   PuOr, RdBu, RdYlBu (per RColorBrewer::brewer.pal.info$colorblind).
+#'   Note: no trio of these six is fully mutually distinguishable under CVD
+#'   simulation when compared as one shared set (checked computationally,
+#'   not assumed) — diverging palettes only span a handful of hue anchors, so
+#'   some cross-palette overlap is unavoidable. RdBu + PRGn + PiYG is the
+#'   empirically best-separated trio found. Treat the palette choice as a
+#'   secondary visual aid, not the primary way to tell panels apart — give
+#'   each panel its own text label/title as the reliable identifier.
+#' reverse_order : if TRUE, put sub-questions with the lowest mean scale
+#'   score on top instead of the highest. The default (FALSE, highest score
+#'   on top) reads naturally when scale level 1 is the least important end
+#'   (e.g. "Not needed" -> "Absolutely essential"). Some scales are coded the
+#'   other way around (e.g. this survey's barrier scale is "Critical
+#'   barrier" -> "No barrier", so level 1 is the most important end); set
+#'   reverse_order = TRUE there so the most important sub-questions still
+#'   end up on top.
+#' label_threshold : minimum segment width (as a proportion, 0-1) for a
+#'   percentage label to be drawn inside it; narrower segments are left
+#'   unlabeled to avoid overlapping text. Only applies when counts = FALSE;
+#'   count labels (counts = TRUE) are always shown.
 plot_likert <- function(
 	survey_long,
 	main_question_filter,
@@ -41,9 +65,12 @@ plot_likert <- function(
 	split_values = NULL,
 	counts = FALSE,
 	labels = FALSE,
-	base_size = 14,
+	base_size = 12,
 	positive_only = FALSE,
-	top_n_sub_questions = NULL
+	top_n_sub_questions = NULL,
+	palette = "RdBu",
+	reverse_order = FALSE,
+	label_threshold = 0.15
 ) {
 	df <- survey_long |>
 		dplyr::filter(
@@ -102,9 +129,7 @@ plot_likert <- function(
 		dplyr::ungroup() |>
 		dplyr::mutate(sub_question = stringr::str_wrap(sub_question, width = 40))
 
-	# RdBu (blue <-> red) is colorblind-safe; RdYlGn is not (relies on
-	# red-green hue discrimination, which fails for the most common CVD types).
-	pal    <- RColorBrewer::brewer.pal(n_levels, "RdBu")
+	pal    <- RColorBrewer::brewer.pal(n_levels, palette)
 	colors <- setNames(pal, scale_levels)
 
 	if (positive_only) {
@@ -175,9 +200,12 @@ plot_likert <- function(
 			dplyr::slice_max(order_by = mean_score, n = top_n_sub_questions, with_ties = FALSE)
 	}
 
-	sub_levels <- mean_score |>
-		dplyr::arrange(mean_score) |>
-		dplyr::pull(sub_question)
+	mean_score_sorted <- if (reverse_order) {
+		dplyr::arrange(mean_score, dplyr::desc(mean_score))
+	} else {
+		dplyr::arrange(mean_score, mean_score)
+	}
+	sub_levels <- dplyr::pull(mean_score_sorted, sub_question)
 
 	segments <- segments |>
 		dplyr::filter(sub_question %in% sub_levels) |>
@@ -223,7 +251,7 @@ plot_likert <- function(
 							label   = if (counts) {
 								as.character(n)
 							} else {
-								ifelse(abs(xmax - xmin) < 0.03, "", scales::percent(pct, accuracy = 1))
+								ifelse(pct < label_threshold, "", scales::percent(pct, accuracy = 1))
 							},
 							label_colour = label_colour_for(colors[as.character(answer)])
 						)
@@ -238,7 +266,7 @@ plot_likert <- function(
 							label   = if (counts) {
 								as.character(n)
 							} else {
-								ifelse(abs(xmax - xmin) < 0.03, "", scales::percent(pct, accuracy = 1))
+								ifelse(pct < label_threshold, "", scales::percent(pct, accuracy = 1))
 							},
 							label_colour = label_colour_for(colors[as.character(answer)])
 						) |>

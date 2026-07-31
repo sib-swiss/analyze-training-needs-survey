@@ -331,14 +331,12 @@ ggsave(
 print(p)
 ```
 
-For a wide range of pre-defined course topics, the respondents were asked to indicate their training needs on a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-preferences, which indicates that the majority of respondents expressed a need for training in AI-related topics, FAIR data and computational methods, as well as in integrating imaging with omics data. In contrast, topics related to e.g. transposable elements analysis and 16S sequencing data analysis were generally considered as less needed. 
+For a wide range of pre-defined course topics, the respondents were asked to indicate their training needs on a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-combined A, which indicates that the majority of respondents expressed a need for training in AI-related topics, FAIR data and computational methods, as well as in integrating imaging with omics data. In contrast, topics related to e.g. transposable elements analysis and 16S sequencing data analysis were generally considered as less needed. 
 
 ```{r}
 #| label: fig-likert-preferences
-#| fig-cap: "Overall responses of training needs, shown in percentages and ordered by need. The topics are ordered by the proportion of respondents who indicated that they needed the topic (i.e. answered \"Very needed\" or \"Absolutely essential\"). Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in Supplementary Data 2."
-#| fig-height: 12
 
-p <- plot_likert(
+p_topic <- plot_likert(
   survey_long,
   all_topic_questions,
   counts = FALSE,
@@ -348,72 +346,60 @@ p <- plot_likert(
     legend.position = "bottom",
     legend.direction = "vertical"
   )
+```
+
+Barriers to participate in SIB courses were also assessed using a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-combined B, which indicates that the majority of respondents did not perceive any of the listed factors as a significant barrier to their participation in SIB courses. However, some respondents indicated that distance and course fees could be potential barriers.
+
+```{r}
+#| label: fig-likert-barriers
+p_barriers <- plot_likert(
+  survey_long,
+  "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
+  counts = FALSE,
+  labels = TRUE,
+  palette = "PRGn",
+  reverse_order = TRUE
+) +
+  ggtitle(NULL) +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical"
+  )
+```
+
+When asked about their preferred learning formats, respondents expressed a preference for blended modes (a combination of synchronous and asynchronous learning), multi-day intensive courses (2-5 days of live course activities) and interactive and problem-based learning approaches, such as bring your own data (participants utilize their own datasets to learn) and project-based learning (participants work in groups to investigate real-world problems). Remarkably, AI-assisted formats (integrates AI technologies into education to personalize learning) were generally less favored. The overall distribution of responses is shown in @fig-likert-combined C.
+
+```{r}
+#| label: fig-likert-formats
+p_formats <- plot_likert(
+  survey_long,
+  "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
+  counts = FALSE,
+  labels = TRUE,
+  palette = "PiYG"
+) +
+  ggtitle(NULL) +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "vertical"
+  )
+```
+
+```{r}
+#| label: fig-likert-combined
+#| fig-cap: "Overall responses of training needs, barriers and format preferences. (A) Training needs. (B) Barriers to participation in SIB courses. (C) Preferred learning formats. The topics, barriers and formats are ordered by the proportion of respondents who indicated that they needed the topic, that the factor was not a barrier, or that they liked the format, respectively. Only percentages over 15% are shown. Some original answers were abbreviated for visualization purposes. For the full answers, please refer to Supplementary Data 1 & 2."
+#| fig-width: 12
+#| fig-height: 10
+p <- (p_topic | (p_barriers / p_formats + plot_layout(guides = 'auto'))) +plot_layout(guides = 'collect') +
+  plot_annotation(tag_levels = "A") & theme(legend.position = "bottom")
 
 print(p)
 
 ggsave(
   here::here("manuscript", "figures", "main_text", "fig3.jpg"),
   p,
-  width = 8,
-  height = 12,
-  dpi = 600
-)
-```
-
-Barriers to participate in SIB courses were also assessed using a 5-point Likert scale. The overall distribution of responses is shown in @fig-likert-barriers, which indicates that the majority of respondents did not perceive any of the listed factors as a significant barrier to their participation in SIB courses. However, some respondents indicated that distance and course fees could be potential barriers.
-
-```{r}
-#| label: fig-likert-barriers
-#| fig-cap: "Overall responses of the question \"Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.\". The barriers are ordered by the proportion of respondents who indicated that they were not a barrier."
-#| fig-height: 6
-p <- plot_likert(
-  survey_long,
-  "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
-  counts = FALSE,
-  labels = TRUE
-) +
-  ggtitle(NULL) +
-  theme(
-    legend.position = "bottom",
-    legend.direction = "vertical"
-  )
-
-print(p)
-
-ggsave(
-  here::here("manuscript", "figures", "main_text", "fig4.jpg"),
-  p,
-  width = 8,
-  height = 6,
-  dpi = 600
-)
-```
-
-When asked about their preferred learning formats, respondents expressed a preference for blended modes (a combination of synchronous and asynchronous learning), multi-day intensive courses (2-5 days of live course activities) and interactive and problem-based learning approaches, such as bring your own data (participants utilize their own datasets to learn) and project-based learning (participants work in groups to investigate real-world problems). Remarkably, AI-assisted formats (integrates AI technologies into education to personalize learning) were generally less favored. The overall distribution of responses is shown in @fig-likert-formats.
-
-```{r}
-#| label: fig-likert-formats
-#| fig-cap: "Overall responses of the question \"Specify which learning formats you prefer. Note: these are not mutually exclusive, i.e. some can be used in combination\". The formats are ordered by the proportion of respondents who indicated that they liked or strongly liked the format. The original answers included an explanation of the format. For the full answers, please refer to Supplementary Data 2."
-#| fig-height: 6
-p <- plot_likert(
-  survey_long,
-  "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
-  counts = FALSE,
-  labels = TRUE
-) +
-  ggtitle(NULL) +
-  theme(
-    legend.position = "bottom",
-    legend.direction = "vertical"
-  )
-
-print(p)
-
-ggsave(
-  here::here("manuscript", "figures", "main_text", "fig5.jpg"),
-  p,
-  width = 8,
-  height = 6,
+  width = 12,
+  height = 10,
   dpi = 600
 )
 ```
@@ -531,7 +517,7 @@ stability_result$purity |>
 
 ### Clusters and learner profiles
 
-The four resulting clusters were characterized by distinct training needs, shown by their top 10 of most liked topics (@fig-topics-by-cluster). This clearly shows that responses within each cluster have distinct preferences that are not visible when analyzing the entire respondent pool (@fig-likert-preferences). Based on these distinct needs, we defined four learner profiles: Cluster 1 (@fig-topics-by-cluster A) is characterized by an interest in using AI and best practices for data, including application of LLMs and reproducible and FAIR data, and is hereafter referred to as the 'AI and data' profile. Cluster 2 (@fig-topics-by-cluster B) is characterized by infectious disease topics and possibly ecology, indicating an interest in phylogenetics, pathogen genomics and epidemiology, and is referred to as the 'Infectious disease genomics' profile. Cluster 3 (@fig-topics-by-cluster C) is characterized by an interest in functional genomics topics, indicating an interest in transcriptomics and epigenetics, and is referred to as the 'Functional genomics' profile. Cluster 4 (@fig-topics-by-cluster D) is characterized by training needs on biochemistry, imaging and AI, indicating an interest in proteomics, mass spectrometry and imaging and omics data integration, and is referred to as the 'Biochemistry, imaging & AI' profile. All clusters have topics related to AI in their top 10, indicating that AI is a cross-cutting theme across all learner profiles.
+The four resulting clusters were characterized by distinct training needs, shown by their top 10 of most liked topics (@fig-topics-by-cluster). This clearly shows that responses within each cluster have distinct preferences that are not visible when analyzing the entire respondent pool (@fig-likert-combined A). Based on these distinct needs, we defined four learner profiles: Cluster 1 (@fig-topics-by-cluster A) is characterized by an interest in using AI and best practices for data, including application of LLMs and reproducible and FAIR data, and is hereafter referred to as the 'AI and data' profile. Cluster 2 (@fig-topics-by-cluster B) is characterized by infectious disease topics and possibly ecology, indicating an interest in phylogenetics, pathogen genomics and epidemiology, and is referred to as the 'Infectious disease genomics' profile. Cluster 3 (@fig-topics-by-cluster C) is characterized by an interest in functional genomics topics, indicating an interest in transcriptomics and epigenetics, and is referred to as the 'Functional genomics' profile. Cluster 4 (@fig-topics-by-cluster D) is characterized by training needs on biochemistry, imaging and AI, indicating an interest in proteomics, mass spectrometry and imaging and omics data integration, and is referred to as the 'Biochemistry, imaging & AI' profile. All clusters have topics related to AI in their top 10, indicating that AI is a cross-cutting theme across all learner profiles.
 
 ```{r}
 #| label: cluster-filtering
@@ -566,7 +552,7 @@ survey_long_cluster <- survey_long |>
 ```{r}
 #| label: fig-topics-by-cluster
 #| fig-cap: "The top 10 most liked topics are shown for each cluster, indicating that each cluster has distinct training needs. Only the answers \"Very needed\" (light blue) and \"Absolutely essential\" (dark blue) are shown. The numbers in the bars represent the count of respondents within the respective cluster selecting the answer. (A) Cluster 1: AI and data. (B) Cluster 2: Infectious disease genomics. (C) Cluster 3: Functional genomics. (D) Cluster 4: Biochemistry, imaging & AI. Some topics have been abbreviated for clarity; the full topic names presented to the respondents can be found in Supplementary Data 2."
-#| fig-height: 20
+#| fig-height: 8
 
 plot_list <- list()
 for (cl in valid_clusters) {
@@ -584,7 +570,7 @@ for (cl in valid_clusters) {
   plot_list[[cl]] <- p
 }
 
-p <- wrap_plots(plot_list, ncol = 1) +
+p <- wrap_plots(plot_list, ncol = 2) +
   plot_annotation(tag_levels = "A") &
   theme(legend.position = "none")
 
@@ -594,7 +580,7 @@ ggsave(
   here::here("manuscript", "figures", "main_text", "fig7.jpg"),
   p,
   width = 8,
-  height = 12,
+  height = 8,
   dpi = 600
 )
 ```
@@ -727,7 +713,9 @@ for (cl in valid_clusters) {
     survey_long_cluster |> dplyr::filter(cluster == cl),
     "Please indicate how much each of the following factors would be a barrier for your participation in a SIB training course.",
     counts = FALSE,
-    labels = TRUE
+    labels = TRUE,
+    palette = "PRGn",
+    reverse_order = TRUE
   ) +
     ggplot2::labs(title = cl_title)
 
@@ -762,7 +750,8 @@ for (cl in valid_clusters) {
     survey_long_cluster |> dplyr::filter(cluster == cl),
     "Specify which learning formats you prefer Note: these are not mutually exclusive, i.e. some can be used in combination",
     counts = FALSE,
-    labels = TRUE
+    labels = TRUE,
+    palette = "PiYG"
   ) +
     ggplot2::labs(title = cl_title)
 
@@ -790,9 +779,9 @@ This paper serves two purposes: it demonstrates a network-based clustering proto
 
 The problems that can be solved with bioinformatics are very diverse, and professionals solving these problems are highly heterogeneous. Therefore, analyzing the survey as a homogeneous group, or slicing the group by demographic indicators only partly captures the diversity of training needs. This issue is not specific to bioinformatics training, creating clusters of respondents is an overall valuable approach for understanding survey data, for example in citizenship norms [@hooghe_comparative_2016], health literacy [@cheng_measuring_2024; @hyde_electronic_2019], bullying [@chung_are_2020] or company training [@wenger_analysing_2024].
 
-Several of these applications rely on latent class analysis [@wenger_analysing_2024; @hooghe_comparative_2016; @chung_are_2020], a model-based alternative that assumes respondents are drawn from a mixture of latent groups, each characterized by its own probability of endorsing every item [@weller_latent_2020]. Unlike latent class analysis, our approach does not require responses to different items to be conditionally independent once class membership is known — that is, it does not assume that knowing a respondent's class fully explains any correlation between their answers to different items. This assumption is difficult to justify for our type of survey: the 33 course-topic items are not a flat, arbitrary list, but are grouped by design into 5 thematic domains, each spanning several related sub-topics — within "Computational methods and AI" alone, "AI-assisted coding and analysis", "Advanced AI techniques", and "Using large language models (LLM) for biomedical knowledge extraction" all appear together. Items sharing a domain correlate simply because they share that domain, independent of whichever latent class a respondent might be assigned to: all four learner profiles we identified had AI-related topics among their top 10 most-needed, a pattern consistent with a general interest in AI that cuts across profiles rather than being fully explained by profile membership, which is the kind of residual item correlation that the assumption of local independence rules out. Our approach also avoids the chance of overfitting by using a latent class model: with four classes and 33 five-level items, estimating a full response-probability profile per item and class would require an estimated 531 free parameters (4 classes × 33 items × 4 free category probabilities, plus 3 class-proportion parameters), exceeding our sample of 260 respondents and risking unstable or non-identifiable class solutions. Network-based clustering avoids this altogether by reducing each respondent's 33-item profile to a single pairwise similarity score, so the number of parameters needed to define the clustering does not grow with the number of items. 
+Several of these applications rely on latent class analysis [@wenger_analysing_2024; @hooghe_comparative_2016; @chung_are_2020] (LCA), a model-based alternative that assumes respondents are drawn from a mixture of latent groups, each characterized by its own probability of endorsing every item [@weller_latent_2020]. Unlike LCA, our approach does not require responses to different items to be conditionally independent once class membership is known. This assumption is difficult to justify for surveys on training needs, since it can be relevant to survey topic preferences in various domains, and topics in the same domain are expected to correlate. For example in our data, all four learner profiles we identified had AI-related topics among their top 10 most-needed, a pattern consistent with a general interest in AI that cuts across profiles rather than being fully explained by profile membership, which is the kind of residual item correlation that the assumption of local independence rules out. Our approach also avoids the chance of overfitting by using LCA. As a rule of thumb, 300 responses or more are desirable for LCA to prevent overfitting [@nylund-gibson_ten_2018], a number that can be quite difficult to reach for local surveys on training needs. In our case we had four classes and 33 topics with five levels each. Estimating a full response-probability profile per item and class would require an estimated 531 free parameters (4 classes/clusters × 33 topics × 4 free category probabilities, plus 3 class-proportion parameters), exceeding our sample of 260 respondents and risking unstable or non-identifiable class solutions. Network-based clustering avoids this altogether by reducing each respondent's profile to a single pairwise similarity score, so the number of parameters needed to define the clustering does not grow with the number of topics. 
 
-Our presented combination of survey with Likert-type questions and multiple-choice demographic questions with network-based clustering analysis provides an effective method to understand heterogeneous training needs. Similarly designed future training-needs surveys would run in similar limitations on the assumptions of latent class analysis, making network-based clustering a  broadly appropriate method for analysis. The clustering approach itself does not depend on the specific topics, wording, or number of domains used in our survey data — it only requires a set of Likert-type items sharing a common scale, asked of every respondent. This makes it directly reusable for other training-needs assessments. The accompanying implementation (https://github.com/sib-swiss/analyze-training-needs-survey) includes the survey design, preprocessing, and clustering steps as parameterized, reusable functions, so the protocol can be applied to a new dataset simply by supplying a new response export and question metadata file.
+Our presented combination of survey with Likert-type questions and multiple-choice demographic questions with network-based clustering analysis provides an effective method to understand heterogeneous training needs. Similarly designed future training-needs surveys could run in similar limitations on the assumptions of LCA, making network-based clustering a  broadly appropriate method for analysis. The clustering approach itself does not depend on the specific topics, wording, or number of domains used in our survey data — it only requires a set of Likert-type items sharing a common scale, asked of every respondent. This makes it directly reusable for other training-needs assessments. The accompanying implementation (https://github.com/sib-swiss/analyze-training-needs-survey) includes the survey design, preprocessing, and clustering steps as parameterized, reusable functions, so the protocol can be applied to a new dataset simply by supplying a new response export and question metadata file.
 
 ### Survey outcomes
 
