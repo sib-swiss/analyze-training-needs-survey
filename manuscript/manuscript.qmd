@@ -451,7 +451,7 @@ p <- sweep_result |>
 print(p)
 
 ggsave(
-  here::here("manuscript", "figures", "main_text", "fig6.jpg"),
+  here::here("manuscript", "figures", "main_text", "fig4.jpg"),
   p,
   width = 5.5,
   height = 4.5,
@@ -577,7 +577,7 @@ p <- wrap_plots(plot_list, ncol = 2) +
 print(p)
 
 ggsave(
-  here::here("manuscript", "figures", "main_text", "fig7.jpg"),
+  here::here("manuscript", "figures", "main_text", "fig5.jpg"),
   p,
   width = 8,
   height = 8,
@@ -637,7 +637,7 @@ p <- plot_cluster_pies(career_pie, "Career stage by cluster") + ggtitle(NULL)
 print(p)
 
 ggsave(
-  here::here("manuscript", "figures", "main_text", "fig8.jpg"),
+  here::here("manuscript", "figures", "main_text", "fig6.jpg"),
   p,
   width = 7,
   height = 6,
